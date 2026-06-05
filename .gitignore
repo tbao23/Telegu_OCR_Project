@@ -1,0 +1,39 @@
+# ── Data (too large for GitHub) ───────────────────────────────────────────────
+data/
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── HuggingFace cache ─────────────────────────────────────────────────────────
+.cache/
+
+# ── Jupyter notebooks checkpoints ────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── OS junk ───────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── API keys / secrets (never commit these) ───────────────────────────────────
+.env
+secrets.py
+*_key.txt
+
+# ── Quarto render artifacts ───────────────────────────────────────────────────
+/.quarto/
+*_files/
+
+# ── Visual Studio ─────────────────────────────────────────────────────────────
+.vs/
+*.user
+*.suo
