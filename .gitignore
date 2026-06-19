@@ -1,5 +1,6 @@
-# ── Data (too large for GitHub) ───────────────────────────────────────────────
+# ── Data / outputs (too large or generated) ───────────────────────────────────
 data/
+outputs/
 
 # ── Python cache ──────────────────────────────────────────────────────────────
 __pycache__/

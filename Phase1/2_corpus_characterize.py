@@ -1,7 +1,7 @@
 """
-phase1/corpus_characterize.py
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Phase 1 — Corpus Characterization
+phase1/2_corpus_characterize.py
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Phase 1, Step 2 — Corpus Characterization
 
 Profiles the Telugu OCR corpus (AlbertoChestnut/telugu-ocr or the
 professor-provided corpus if it follows the same layout) and produces
@@ -10,13 +10,13 @@ quantitative statistics required for the Phase 1 written report.
 Usage
 -----
   # Download the HuggingFace dataset first, then characterize:
-  python corpus_characterize.py --corpus-dir /path/to/dataset/
+  python phase1/2_corpus_characterize.py --corpus-dir /path/to/dataset/
 
   # Or let the script download it for you:
-  python corpus_characterize.py --download --corpus-dir ./data/corpus/
+  python phase1/2_corpus_characterize.py --download --corpus-dir ./data/corpus/
 
   # Just characterize from corpus_profile.json (faster, no image I/O):
-  python corpus_characterize.py --profile-json corpus_profile.json
+  python phase1/2_corpus_characterize.py --profile-json corpus_profile.json
 
 Output
 ------
@@ -75,7 +75,7 @@ def download_dataset(corpus_dir: Path) -> None:
 
 def load_corpus_profile(profile_path: Path) -> pd.DataFrame:
     """Load corpus_profile.json and return a DataFrame of approved books."""
-    with open(profile_path, encoding='utf-8') as f:
+    with open(profile_path, encoding="utf-8") as f:
         records = json.load(f)
 
     # Support both list-of-dicts and dict-of-dicts formats
@@ -91,13 +91,26 @@ def summarize_from_profile(df: pd.DataFrame) -> dict:
     approved = df[df["decision"] == "approved"].copy() if "decision" in df.columns else df.copy()
     excluded = df[df["decision"] == "excluded"].copy() if "decision" in df.columns else pd.DataFrame()
 
+    # Page count totals
     total_pages_approved = int(approved["page_count"].sum()) if "page_count" in approved.columns else 0
 
-    quality_counts = Counter(approved["quality_label"].dropna().tolist()) if "quality_label" in approved.columns else {}
+    # Quality distribution across approved books
+    quality_counts = (
+        Counter(approved["quality_label"].dropna().tolist())
+        if "quality_label" in approved.columns else {}
+    )
 
-    telugu_ratios = approved["telugu_ratio"].dropna() if "telugu_ratio" in approved.columns else pd.Series([], dtype=float)
+    # Telugu ratio statistics
+    telugu_ratios = (
+        approved["telugu_ratio"].dropna()
+        if "telugu_ratio" in approved.columns else pd.Series([], dtype=float)
+    )
 
-    excl_reasons = Counter(excluded["exclusion_reason"].dropna().tolist()) if "exclusion_reason" in excluded.columns and len(excluded) > 0 else {}
+    # Exclusion reasons
+    excl_reasons = (
+        Counter(excluded["exclusion_reason"].dropna().tolist())
+        if "exclusion_reason" in excluded.columns and len(excluded) > 0 else {}
+    )
 
     stats = {
         "total_books_in_manifest": len(df),
@@ -132,11 +145,9 @@ def sample_image_stats(corpus_dir: Path, n_books: int = 20, pages_per_book: int 
     Sample a subset of images to estimate resolution distribution.
     Reads n_books * pages_per_book images; returns DPI/size statistics.
     """
-    dataset_dir = corpus_dir / "dataset"
-    if not dataset_dir.exists():
+    book_dirs = sorted([d for d in corpus_dir.iterdir() if d.is_dir() and not d.name.startswith(".")])
+    if not book_dirs:
         return {}
-
-    book_dirs = sorted([d for d in dataset_dir.iterdir() if d.is_dir()])
     # Random sample of books
     rng = np.random.default_rng(42)
     sampled_books = rng.choice(book_dirs, size=min(n_books, len(book_dirs)), replace=False)
@@ -183,11 +194,9 @@ def estimate_character_count(corpus_dir: Path, n_sample: int = 500) -> dict:
     Sample .txt files to estimate average characters per page and
     project total character count across the corpus.
     """
-    dataset_dir = corpus_dir / "dataset"
-    if not dataset_dir.exists():
+    all_txts = list(corpus_dir.glob("*/*.txt"))
+    if not all_txts:
         return {}
-
-    all_txts = list(dataset_dir.rglob("*.txt"))
     rng = np.random.default_rng(42)
     sampled = rng.choice(all_txts, size=min(n_sample, len(all_txts)), replace=False)
 
@@ -308,7 +317,7 @@ def main():
     stats, approved_df = summarize_from_profile(df)
 
     # ── Image sampling ────────────────────────────────────────────────────────
-    if not args.skip_images and (args.corpus_dir / "dataset").exists():
+    if not args.skip_images and args.corpus_dir.exists():
         print("\nSampling images for resolution statistics…")
         img_stats = sample_image_stats(args.corpus_dir)
         stats["image_resolution"] = img_stats
@@ -340,6 +349,8 @@ def main():
         plot_pages_per_book(approved_df, args.out_dir)
 
     print("\nPhase 1 characterization complete.")
+    print("\nNext step:")
+    print(f"  python phase1/3_sample_ground_truth.py --corpus-dir {args.corpus_dir}/")
 
 
 if __name__ == "__main__":

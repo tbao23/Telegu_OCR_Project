@@ -1,7 +1,7 @@
 """
-phase1/sample_ground_truth.py
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Phase 1 — Stratified Ground Truth Sample Selection
+phase1/3_sample_ground_truth.py
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Phase 1, Step 3 — Stratified Ground Truth Sample Selection
 
 Selects 30–50 pages stratified across the quality spectrum for manual
 annotation. High-quality (level 3–4) pages form the primary evaluation
@@ -16,7 +16,7 @@ Strategy
 
 Usage
 -----
-  python sample_ground_truth.py \\
+  python phase1/3_sample_ground_truth.py \\
       --corpus-dir data/corpus/ \\
       --n 40 \\
       --out data/ground_truth/
@@ -55,19 +55,18 @@ QUALITY_PROPORTIONS = {4: 0.40, 3: 0.30, 2: 0.10, 1: 0.10, 0: 0.10}
 
 def load_all_pages(corpus_dir: Path) -> pd.DataFrame:
     """
-    Walk dataset/<book>/meta.json files and build a flat DataFrame of
+    Walk <corpus_dir>/<book>/meta.json files and build a flat DataFrame of
     all available pages with their quality levels.
     """
-    dataset_dir = corpus_dir / "dataset"
-    if not dataset_dir.exists():
-        sys.exit(f"dataset/ not found in {corpus_dir}")
+    if not corpus_dir.exists():
+        sys.exit(f"{corpus_dir} not found.")
 
     rows = []
-    for meta_path in tqdm(sorted(dataset_dir.rglob("meta.json")), desc="Scanning books"):
+    for meta_path in tqdm(sorted(corpus_dir.glob("*/meta.json")), desc="Scanning books"):
         book_dir = meta_path.parent
         book_name = book_dir.name
         try:
-            with open(meta_path) as f:
+            with open(meta_path, encoding="utf-8") as f:
                 meta = json.load(f)
         except Exception:
             continue
@@ -182,6 +181,8 @@ def main():
     write_annotation_template(sample, args.out)
 
     print(f"\nDone. {len(sample)} pages ready for annotation in: {args.out}")
+    print("\nNext step:")
+    print(f"  Open {args.out / 'annotation_template.csv'} and begin manual annotation.")
 
 
 if __name__ == "__main__":
