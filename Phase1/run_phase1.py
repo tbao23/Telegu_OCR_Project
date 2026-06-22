@@ -14,6 +14,12 @@ annotation — those two steps still require a human (rendering needs Quarto
 installed; annotation needs a person to read Telugu and compare it to
 each scan). Everything else is automated here.
 
+EVERY step also skips itself automatically if its output already exists
+on disk — re-running this script will NOT overwrite an already-completed
+annotation_template.csv (Step 3) or redo Steps 1-2 unnecessarily. Pass
+--force to override and redo every step regardless (this WILL wipe any
+completed annotation work in Step 3 — back it up first if you have one).
+
 Usage
 -----
   # Default — prompts interactively whether to download the corpus:
@@ -74,6 +80,20 @@ def main():
                         help="Skip step 0 without prompting — use if the corpus is already downloaded")
     parser.add_argument("--download", action="store_true",
                         help="Run step 0 without prompting — forces a (re)download")
+    parser.add_argument("--force", action="store_true",
+                        help="Re-run every step even if its output already exists "
+                             "(WARNING: this will overwrite an already-annotated "
+                             "annotation_template.csv in Step 3)")
+    parser.add_argument("--skip-ground-truth-sample", action="store_true",
+                        help="Skip Step 3 (random ground-truth sampling) entirely — use this when "
+                             "you're going to restore a previous annotation instead (see "
+                             "optional_restore_ground_truth.py), so you never waste a sample that's "
+                             "about to be overwritten anyway")
+    parser.add_argument("--skip-image-stats", action="store_true",
+                        help="Skip real image resolution/DPI sampling in Step 2 (faster, but the "
+                             "assignment requires 300 DPI minimum input — without this check you "
+                             "won't know if any pages need upscaling before Phase 2/3. Only skip "
+                             "this for quick iteration; do a real run without it before submission.")
     args = parser.parse_args()
 
     python = sys.executable
@@ -119,28 +139,44 @@ def main():
         )
 
     # ── Step 1: Build profile ───────────────────────────────────────────────
-    run_step(
-        "Step 1 — Build corpus_profile.json",
-        [python, str(SCRIPT_DIR / "1_build_profile.py"),
-         "--corpus-dir", str(args.corpus_dir)],
-    )
+    profile_json = args.corpus_dir / "corpus_profile.json"
+    if profile_json.exists() and not args.force:
+        print(f"\n[SKIP] Step 1 — {profile_json} already exists. Use --force to redo.")
+    else:
+        run_step(
+            "Step 1 — Build corpus_profile.json",
+            [python, str(SCRIPT_DIR / "1_build_profile.py"),
+             "--corpus-dir", str(args.corpus_dir)],
+        )
 
     # ── Step 2: Characterize ────────────────────────────────────────────────
-    run_step(
-        "Step 2 — Corpus Characterization (stats + charts)",
-        [python, str(SCRIPT_DIR / "2_corpus_characterize.py"),
-         "--profile-json", str(args.corpus_dir / "corpus_profile.json"),
-         "--skip-images"],
-    )
+    corpus_stats = Path("outputs/phase1/corpus_stats.json")
+    if corpus_stats.exists() and not args.force:
+        print(f"\n[SKIP] Step 2 — {corpus_stats} already exists. Use --force to redo.")
+    else:
+        cmd2 = [python, str(SCRIPT_DIR / "2_corpus_characterize.py"),
+                "--profile-json", str(profile_json)]
+        if args.skip_image_stats:
+            cmd2.append("--skip-images")
+        run_step("Step 2 — Corpus Characterization (stats + charts)", cmd2)
 
     # ── Step 3: Sample ground truth ─────────────────────────────────────────
-    run_step(
-        "Step 3 — Sample Ground Truth Pages",
-        [python, str(SCRIPT_DIR / "3_sample_ground_truth.py"),
-         "--corpus-dir", str(args.corpus_dir),
-         "--n", str(args.n),
-         "--out", str(args.ground_truth_dir)],
-    )
+    annotation_csv = args.ground_truth_dir / "annotation_template.csv"
+    if args.skip_ground_truth_sample:
+        print("\n[SKIP] Step 3 — skipped via --skip-ground-truth-sample "
+              "(restoring a previous annotation instead).")
+    elif annotation_csv.exists() and not args.force:
+        print(f"\n[SKIP] Step 3 — {annotation_csv} already exists. Use --force to redo.")
+        print("       (--force will OVERWRITE this file, wiping any completed annotation work.")
+        print("        Back it up first if you have annotation progress saved in it.)")
+    else:
+        run_step(
+            "Step 3 — Sample Ground Truth Pages",
+            [python, str(SCRIPT_DIR / "3_sample_ground_truth.py"),
+             "--corpus-dir", str(args.corpus_dir),
+             "--n", str(args.n),
+             "--out", str(args.ground_truth_dir)],
+        )
 
     # ── Done ─────────────────────────────────────────────────────────────────
     print(f"\n{'=' * 70}")

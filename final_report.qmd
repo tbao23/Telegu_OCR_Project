@@ -1,0 +1,585 @@
+---
+title: "Telugu OCR via Large Language Models"
+subtitle: "Final Project Report — CSCI/DASC 6020, Machine Learning"
+author:
+  - "Tyler Bao"
+  - "Christian Green"
+date: today
+lang: en-US
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    theme: cosmo
+    code-fold: true
+    fig-cap-location: bottom
+  pdf:
+    toc: true
+    number-sections: true
+    geometry: margin=1in
+    fontsize: 11pt
+    fig-width: 6.5
+    fig-asp: 0.6
+execute:
+  echo: true
+  warning: false
+  message: false
+bibliography: references.bib
+---
+
+```{python}
+#| label: setup
+#| echo: false
+import json
+import os
+from pathlib import Path
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+plt.rcParams.update({
+    "figure.dpi": 130,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "font.family": "sans-serif",
+})
+
+def load_json(path, label="this data"):
+    """Load a JSON file if it exists, otherwise return a clear pending marker."""
+    p = Path(path)
+    if p.exists():
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    return {"_pending": True, "_label": label}
+
+def load_csv(path, label="this data"):
+    p = Path(path)
+    if p.exists():
+        return pd.read_csv(p)
+    return None
+
+def pending_note(label):
+    print(f"[PENDING: {label} — will populate once the final pipeline run completes]")
+
+# Load everything we might need, gracefully
+corpus_stats = load_json("outputs/phase1/corpus_stats.json", "Phase 1 corpus statistics")
+ocr_summary = load_csv("outputs/phase3/metrics/ocr_summary.csv", "Phase 3 OCR comparison")
+ocr_results = load_csv("outputs/phase3/metrics/ocr_comparison_results.csv", "Phase 3 detailed results")
+calibration = load_json("outputs/phase4/calibration_summary.json", "Phase 4 calibration")
+agreement = load_csv("outputs/phase4/cross_model_agreement.csv", "Phase 4 cross-model agreement")
+error_cats = load_json("outputs/phase5/error_categories_gemini_summary.json", "Phase 5 error categorization")
+cost_estimate = load_json("outputs/phase5/scalability_cost_estimate.json", "Phase 5 cost estimate")
+```
+
+# Executive Summary
+
+This report documents the design, implementation, and evaluation of an
+end-to-end pipeline for converting scanned Telugu document images into
+clean Unicode text using a combination of classical OCR engines and
+modern vision-capable Large Language Models (LLMs), with LLM-assisted
+quality validation in place of (and alongside) traditional ground-truth
+comparison. The project spans five phases: corpus characterization,
+image preprocessing, OCR execution and model comparison, LLM-based
+validation, and final analysis.
+
+Two findings stand out as the project's most significant contributions
+beyond simply reporting accuracy numbers. First, a systematic
+**Unicode filename bug** in image preprocessing silently dropped
+roughly one in five pages from the working set — specifically and
+disproportionately the pages whose source book titles were written in
+Telugu script, an ironic and instructive failure mode for a Telugu OCR
+project. Second, and more substantially, a single preprocessing step
+intended to *improve* OCR accuracy — global histogram equalization —
+was found to actively **destroy** legibility on the corpus's
+already-high-contrast scans, dropping a representative test page's OCR
+output from a full transcription attempt to a complete failure (CER
+1.00) before the cause was isolated and fixed (CER 0.276 after).
+This directly challenges the common assumption that more preprocessing
+is strictly beneficial, and is discussed in detail in [Phase 2](#phase-2-image-preprocessing-pipeline).
+
+# Introduction and Problem Statement
+
+Telugu is a Dravidian language spoken by approximately 90 million
+people, written in a Brahmic script characterized by extensive
+consonant-conjunct ligatures and a rich system of vowel diacritics
+(mātrās) that attach to base consonants in spatially complex ways.
+Despite its speaker population, Telugu remains comparatively
+under-served by OCR tooling relative to high-resource languages and
+even relative to some other Indic scripts — a gap this project
+investigates directly by comparing a long-standing free baseline
+(Tesseract) against a modern vision-capable LLM (Google's Gemini).
+
+The project's broader goal, as emphasized in the course's project
+guidance, was not merely to produce text from scanned images but to
+practice the actual workflow of applied machine learning: formulating
+a real problem, acquiring and cleaning data, designing a multi-stage
+pipeline, selecting and comparing methods empirically, and iterating
+based on evidence rather than assumption. Several of the most
+substantive findings in this report — the two preprocessing bugs in
+particular — emerged directly from that iterative, evidence-driven
+process rather than from the initial pipeline design.
+
+## Tools and Libraries
+
+Per course guidance to rely on tested libraries rather than
+reimplementing core algorithms, this project uses: `jiwer` for all
+CER/WER computation, `opencv-python` for image preprocessing,
+`pytesseract` for the classical OCR baseline, the official `google-genai`
+SDK for Gemini API access, `pandas`/`numpy` for data handling, and
+`scipy` for statistical correlation in the calibration analysis. One
+early version of the Phase 3 comparison script contained a hand-rolled
+Levenshtein/CER/WER implementation; this was identified and replaced
+with `jiwer` during development (see [AI Tool Usage Disclosure](#ai-tool-usage-disclosure)).
+
+---
+
+# Phase 1: Corpus Characterization and Problem Scoping
+
+## Corpus Selection
+
+Per the course's published guidance on acceptable Telugu OCR data
+sources, this project uses a Telugu Wikisource–derived corpus
+[@wikisource_telugu] assembled by a team member and released on
+HuggingFace [@chestnut2026telugu]. Every page in the corpus already
+carries a community transcription via Wikisource's ProofreadPage
+extension [@proofreadpage], with quality levels 0 (no text) through 4
+(independently validated) — providing usable reference text at scale
+without requiring this project to hand-annotate the full corpus.
+
+## Corpus Statistics
+
+```{python}
+#| label: tbl-corpus-overview
+#| tbl-cap: "Corpus overview"
+
+if corpus_stats.get("_pending"):
+    pending_note(corpus_stats["_label"])
+else:
+    summary = pd.DataFrame({
+        "Metric": ["Total books", "Total page pairs", "Pages per book (mean)",
+                   "Pages per book (median)"],
+        "Value": [
+            corpus_stats.get("approved_books", "N/A"),
+            f"{corpus_stats.get('total_pages_approved', 0):,}",
+            corpus_stats.get("pages_per_book", {}).get("mean", "N/A"),
+            corpus_stats.get("pages_per_book", {}).get("median", "N/A"),
+        ],
+    })
+    print(summary.to_string(index=False))
+```
+
+```{python}
+#| label: fig-quality-dist
+#| fig-cap: "Quality label distribution across the corpus"
+img_path = Path("outputs/phase1/quality_dist.png")
+if img_path.exists():
+    from IPython.display import Image
+    display(Image(filename=str(img_path)))
+else:
+    pending_note("quality distribution chart")
+```
+
+## Ground Truth Sample and Manual Annotation
+
+A stratified sample of 40 pages was drawn across quality levels for
+manual verification. Of these, 39 of 40 (97.5%) had their existing
+Wikisource transcription confirmed accurate against the scanned image
+with no correction needed — a meaningful validation that quality
+levels 3–4 (human-proofread / validated) are reliable as ground truth
+without re-transcription. The one exception was a page labeled
+"problematic" (quality level 2) that, on inspection, had **no
+transcription text at all**, despite carrying page-level metadata —
+a finding that supports excluding quality level 2 from benchmark use
+entirely rather than treating it as merely noisy.
+
+This finding directly informed the corpus-wide sampling strategy used
+in Phase 3: subsequent samples favor quality levels 3–4 for this
+reason.
+
+## Scan Artifact Taxonomy (Observed)
+
+Manual inspection of the 40 ground-truth pages produced the following
+observed artifact frequencies — empirical counts from a real sample,
+not estimates:
+
+| Artifact | Observed (/40) |
+|---|---|
+| No visible defects ("Clean") | 19 |
+| Ink fading | 18 |
+| Smudging | 9 |
+| Blur | 7 |
+| Cramped text / tight spacing | 4 |
+| Worn / damaged page | 3 |
+| Non-text content (illustration/diagram) | 5 |
+| No transcription available | 1 |
+
+This taxonomy directly motivated the preprocessing pipeline design in
+Phase 2, and the disproportionate prevalence of ink fading (18/40,
+45%) over more dramatic damage (torn pages, heavy foxing) is part of
+why an aggressive contrast-correction step seemed reasonable at
+design time — and part of why its failure mode (see below) was not
+obvious until measured directly.
+
+---
+
+# Phase 2: Image Preprocessing Pipeline
+
+## Methodology
+
+The preprocessing pipeline converts raw scans into a binarized form
+suitable for OCR input, via: grayscale conversion, mild denoising
+(`cv2.fastNlMeansDenoising`), and binarization. The pipeline went
+through two significant, measured revisions during development,
+detailed below.
+
+## Finding 1: Unicode Filename Handling (Windows/OpenCV)
+
+**Observation.** Initial preprocessing runs reported a 22.5% failure
+rate (9 of 40 pages) with status `"Could not read image"`. Cross-
+referencing failed filenames against successful ones revealed a
+perfect split: *every* failed page had a Telugu-script filename
+(e.g. `పటం_కతలు__page_0102.jpg`), and *every* successful page had a
+Latin-script filename.
+
+**Root cause.** `cv2.imread()` and `cv2.imwrite()` on Windows use an
+underlying file API that does not handle non-ASCII paths correctly —
+a known OpenCV limitation. The function does not raise an error; it
+silently returns `None`, masking the failure unless filenames are
+specifically cross-checked against outcomes.
+
+**Fix.** Image I/O was rewritten to read raw bytes via `numpy.fromfile`
+and decode/encode via `cv2.imdecode`/`cv2.imencode`, bypassing the
+problematic path-handling code entirely. After the fix, 40 of 40 pages
+(100%) processed successfully — verified directly, not assumed.
+
+**Significance.** Beyond the immediate fix, this is a concrete
+illustration of a broader risk in low-resource-language tooling:
+standard libraries often carry unstated assumptions (here, ASCII file
+paths) that only surface when tested against real non-Latin-script
+data. A test suite using only Latin-named sample files would never
+have caught this.
+
+## Finding 2: Histogram Equalization Was Actively Harmful
+
+**Observation.** Even after fixing the Unicode bug, baseline Tesseract
+accuracy across the 40-page ground truth was poor enough to warrant
+investigation beyond "Tesseract is a weak baseline" — median CER
+near 0.94, with some pages producing **zero output** despite visibly
+clean, legible source scans.
+
+**Method.** Each preprocessing stage was isolated and visually
+inspected in sequence on a representative test page (mean source
+brightness 238.6/255, std. dev. 57.4 — i.e., an already
+high-contrast, well-printed scan):
+
+1. Grayscale — fully legible
+2. Mild denoising — fully legible, negligible visible change
+3. **`cv2.equalizeHist()` (global histogram equalization) — text
+   characters visibly merged into thick, illegible blobs**
+4. Adaptive thresholding on top of the already-damaged step 3 output —
+   further fragmented into speckled noise
+
+**Root cause.** Global histogram equalization stretches contrast
+based on the image's existing histogram. On a scan that is *already*
+high-contrast, this stretch over-amplifies mid-tones until adjacent
+character strokes bleed together — the opposite of histogram
+equalization's intended effect on genuinely washed-out scans. The
+corpus's source scans (clean, modern book reproductions, not degraded
+photocopies) made this failure mode the norm rather than the
+exception.
+
+**Fix.** `equalizeHist()` was removed entirely; binarization now uses
+Otsu's method, which derives its threshold from each page's own
+histogram rather than applying a blind global stretch.
+
+**Measured impact** (single representative test page, `jiwer`-computed):
+
+| | Before fix | After fix |
+|---|---|---|
+| Tesseract output | Empty (0 characters) | 1,037 characters |
+| CER | 1.00 (total failure) | 0.276 |
+
+**Significance.** This finding runs counter to a default assumption —
+stated explicitly in the course's project materials — that
+preprocessing reliably improves OCR accuracy relative to raw scans.
+For this corpus, one specific preprocessing step did the opposite,
+and the failure was severe enough to produce complete transcription
+failure, not merely degraded accuracy. The broader lesson generalizes:
+preprocessing pipelines built on generic best-practice steps should be
+validated stage-by-stage against the actual characteristics of the
+target corpus, not assumed correct because each individual technique
+is individually well-established in the literature.
+
+## Preprocessing Outcomes (Full Run)
+
+```{python}
+#| label: tbl-preprocessing-report
+#| tbl-cap: "Preprocessing outcomes across the full ground truth / corpus sample"
+
+report_path = Path("outputs/phase2/preprocessing_report.csv")
+if report_path.exists():
+    df = pd.read_csv(report_path)
+    print(df["status"].value_counts().to_string())
+else:
+    pending_note("Phase 2 preprocessing report")
+```
+
+---
+
+# Phase 3: OCR Pipeline and Model Comparison
+
+## Methodology
+
+Two OCR engines were compared: **Tesseract** (with the Telugu
+language pack) as a free, classical baseline, and **Gemini** (a
+vision-capable LLM) as the project's primary LLM-based OCR method.
+Gemini was selected over a local open-weights alternative
+(Qwen3-VL via Ollama) primarily for **throughput**: local vision
+inference on CPU-only hardware was measured to be substantially
+slower than a hosted API call, a meaningful constraint given the
+target sample sizes (500 pages for the corpus-wide deliverable, 100+
+for LLM validation). Gemini's free tier (rate-limited but
+no-cost) was sufficient to cover the project's API usage; a key-
+rotation mechanism across multiple free-tier projects was implemented
+to handle the per-project daily quota cap transparently (see
+[AI Tool Usage Disclosure](#ai-tool-usage-disclosure)).
+
+A second, independent 500-page sample was drawn from the full corpus
+(distinct from the Phase 1 ground-truth sample) using the same
+quality-stratified approach, favoring quality levels 3–4 per the
+Phase 1 finding on transcription reliability. This corpus sample's
+existing Wikisource transcriptions serve as reference text for the
+comparison below.
+
+## Results
+
+```{python}
+#| label: tbl-ocr-summary
+#| tbl-cap: "OCR model comparison summary"
+
+if ocr_summary is not None:
+    print(ocr_summary.to_string(index=False))
+else:
+    pending_note("Phase 3 OCR comparison summary")
+```
+
+```{python}
+#| label: fig-cer-distribution
+#| fig-cap: "CER distribution by model"
+
+if ocr_results is not None:
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    for model in ocr_results["model"].unique():
+        subset = ocr_results[ocr_results["model"] == model]
+        ax.hist(subset["cer"], bins=20, alpha=0.6, label=model)
+    ax.set_xlabel("Character Error Rate (CER)")
+    ax.set_ylabel("Number of pages")
+    ax.legend()
+    ax.set_title("CER Distribution by OCR Model")
+    plt.tight_layout()
+    plt.show()
+else:
+    pending_note("Phase 3 CER distribution chart")
+```
+
+### Note on Short-Reference Pages
+
+A statistical artifact was identified and corrected during CER
+analysis: pages with very short reference text (e.g. near-blank
+pages) produce mathematically unstable CER, since
+$CER = \text{edit\_distance} / \text{reference\_length}$ — a tiny
+denominator can produce an extreme ratio from even modest OCR output.
+One page with a 23-character reference produced a CER of 42.8 purely
+from this effect, single-handedly dominating an unfiltered mean-CER
+statistic. All summary statistics in this report exclude pages with
+reference text under 50 characters by default, with both the
+filtered and unfiltered numbers reported transparently in the
+underlying data files.
+
+---
+
+# Phase 4: LLM-Assisted Validation Framework
+
+## Methodology
+
+Three complementary validation approaches were implemented, per the
+assignment's specification:
+
+- **Method A (Fluency scoring)** — an LLM rates OCR output 1–5 for
+  linguistic plausibility, without reference to ground truth.
+- **Method B (Error detection)** — an LLM identifies specific
+  morphologically implausible words/sequences and suggests
+  corrections.
+- **Method C (Cross-model agreement)** — Tesseract and Gemini outputs
+  on the same pages are compared directly (via `difflib`); low
+  agreement flags a page for review without needing ground truth at
+  all.
+
+Classical CER/WER (via `jiwer`) against the Phase 1 ground truth and
+the Phase 3 corpus sample provides the basis against which Methods A
+and B are calibrated.
+
+### A Note on Local vs. API-Based Judge Models
+
+Method A and B were initially implemented against a local Ollama
+model (Qwen3) for zero marginal cost. Two real issues were found and
+fixed during development:
+
+1. **Empty responses on longer prompts.** Qwen3 defaults to an
+   internal "thinking" mode whose reasoning trace shares the same
+   output-token budget as the final answer; on the more demanding
+   error-detection task, the model exhausted its budget on reasoning
+   and returned an empty final answer on 39 of 40 pages. Passing
+   `"think": false` resolved this — flagged error counts went from a
+   mean of 0.03/page (clearly broken) to 7.33/page (plausible) after
+   the fix.
+2. **Throughput.** Even after the above fix, local CPU-bound inference
+   was measured to be a practical bottleneck at the 100+ page scale
+   required for Phase 4. The validation backend was made fully
+   configurable (Ollama, Gemini, Anthropic, or OpenAI, selected via a
+   single flag) and Gemini was adopted as the default for Methods A/B
+   specifically for throughput, while Ollama remains fully supported
+   and zero-cost for anyone reproducing this work without API access.
+
+## Results
+
+```{python}
+#| label: tbl-calibration
+#| tbl-cap: "Calibration: does the LLM fluency score track real CER?"
+
+if calibration.get("_pending"):
+    pending_note(calibration["_label"])
+else:
+    print(json.dumps(calibration, indent=2, ensure_ascii=False))
+```
+
+```{python}
+#| label: fig-calibration-scatter
+#| fig-cap: "LLM fluency score vs. CER"
+
+img_path = Path("outputs/phase4/calibration_scatter.png")
+if img_path.exists():
+    from IPython.display import Image
+    display(Image(filename=str(img_path)))
+else:
+    pending_note("calibration scatter plot")
+```
+
+```{python}
+#| label: tbl-cross-model
+#| tbl-cap: "Cross-model agreement (Method C)"
+
+if agreement is not None:
+    print(f"Mean agreement: {agreement['agreement_score'].mean():.4f}")
+    print(f"Pages flagged for review: {int(agreement['flagged_for_review'].sum())} / {len(agreement)}")
+else:
+    pending_note("Phase 4 cross-model agreement results")
+```
+
+---
+
+# Phase 5: Analysis, Insights, and Scalability
+
+## Error Categorization
+
+Beyond a single CER number, OCR errors were classified by type
+(substitution, deletion, insertion), with two Telugu-specific
+categories: errors involving combining vowel signs (mātrā confusion)
+and errors adjacent to the virama/conjunct-forming character, both
+recognized failure modes for Telugu OCR specifically (per
+[@rao2019telugu]) rather than generic to OCR broadly.
+
+```{python}
+#| label: tbl-error-categories
+#| tbl-cap: "Error type breakdown"
+
+if error_cats.get("_pending"):
+    pending_note(error_cats["_label"])
+else:
+    print(json.dumps(error_cats, indent=2, ensure_ascii=False))
+```
+
+## Scalability and Cost Estimate
+
+```{python}
+#| label: tbl-cost-estimate
+#| tbl-cap: "Projected cost/time to process the full ~32,949-page corpus"
+
+if cost_estimate.get("_pending"):
+    pending_note(cost_estimate["_label"])
+else:
+    rows = []
+    for model, vals in cost_estimate.items():
+        rows.append({"Model": model, **vals})
+    print(pd.DataFrame(rows).to_string(index=False))
+```
+
+This estimate uses published API pricing as of the time of writing;
+exact figures should be re-verified before being treated as
+authoritative, as LLM API pricing changes frequently.
+
+## Failure Mode Discussion
+
+*(To be completed with reference to the final Phase 3/4/5 results —
+specific examples of pages where Gemini and Tesseract disagreed most,
+and what those pages have in common: scan quality, font era, layout
+complexity, or genuine linguistic ambiguity.)*
+
+---
+
+# Limitations
+
+- The 40-page Phase 1 ground truth, while manually verified, is a
+  small sample relative to the corpus's true diversity (217+ books
+  spanning roughly two centuries of Telugu printing).
+- Wikisource transcriptions used as reference for the larger 500-page
+  sample are community-contributed and not individually
+  hand-reverified at that scale, unlike the Phase 1 sample.
+- Local LLM judge quality (Qwen3, when used) is measurably weaker on
+  Telugu than the paid/free-tier-API alternatives — a real
+  cost/accuracy tradeoff documented but not fully resolved here.
+- Free-tier API rate and daily quota limits constrained the practical
+  sample sizes used; the scalability estimate in Phase 5 projects
+  beyond what was directly tested.
+
+# Conclusions
+
+*(To be finalized once final results are in — will synthesize the
+overall model comparison, whether LLM-based validation proved a
+reliable proxy for ground-truth accuracy, and the practical
+cost/throughput tradeoffs observed.)*
+
+---
+
+# AI Tool Usage Disclosure
+
+Per the course's policy on LLM-based coding assistants, the following
+summarizes how such tools were used across this project:
+
+- **Claude (Anthropic)** was used throughout to scaffold the project's
+  Python scripts (all five phases' pipeline stages and orchestrators),
+  debug environment and dependency issues (numpy/pandas version
+  conflicts, Unicode encoding, HuggingFace and Gemini API rate-limit
+  handling), and draft this report's structure and prose.
+- **Bugs found and fixed with AI assistance, verified independently
+  by the author**: the Unicode filename handling bug and the
+  histogram-equalization preprocessing bug (Phase 2, detailed above);
+  a hand-rolled CER/WER implementation in an early Phase 3 script
+  was identified as inconsistent with the course's stated preference
+  for established libraries and replaced with `jiwer`.
+- **LLM-assisted ground truth review**: a subset of the Phase 1
+  40-page annotation was cross-checked using an LLM-based image-to-
+  text comparison workflow to assist with character-level
+  verification of Telugu conjuncts/diacritics; final annotation
+  judgments were made and recorded by the author.
+- All generated code was reviewed, run, and debugged by the author
+  and is understood in full. All reported statistics were
+  independently verified by re-running the corresponding scripts
+  against the actual corpus and OCR output, not taken on faith from
+  generated code.
+
+# References
+
+::: {#refs}
+:::

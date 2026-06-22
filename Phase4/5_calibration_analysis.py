@@ -52,10 +52,19 @@ def main():
     merged = cer_df.merge(fluency_df, on="filename", how="inner")
     merged = merged.dropna(subset=["cer", "score"])
 
+    n_total = len(merged)
+    n_flagged = 0
+    if "flagged_short_reference" in merged.columns:
+        n_flagged = int(merged["flagged_short_reference"].sum())
+        merged = merged[~merged["flagged_short_reference"]]
+        if n_flagged > 0:
+            print(f"Excluded {n_flagged} short-reference page(s) (statistically unstable CER) "
+                  f"before computing correlation — {n_total} pages available, {len(merged)} used.")
+
     if len(merged) < 3:
         raise SystemExit(
-            f"Only {len(merged)} pages have both CER and a valid LLM score — "
-            "need at least 3 to compute meaningful correlation."
+            f"Only {len(merged)} pages have both CER and a valid LLM score (after excluding "
+            f"{n_flagged} short-reference outlier(s)) — need at least 3 to compute meaningful correlation."
         )
 
     # Fluency score is 1 (worst) to 5 (best); CER is 0 (best) to 1+ (worst).
@@ -65,6 +74,7 @@ def main():
 
     summary = {
         "n_pages": len(merged),
+        "n_pages_excluded_short_reference": n_flagged,
         "pearson_r": round(float(pearson_r), 4),
         "pearson_p_value": round(float(pearson_p), 4),
         "spearman_r": round(float(spearman_r), 4),

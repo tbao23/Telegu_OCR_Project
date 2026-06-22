@@ -10,8 +10,8 @@ specified prompt structure.
 
 Backend is configurable via --backend. Ollama (local, free) is the
 default; Anthropic/OpenAI/Gemini are available if you'd rather use a
-paid API model as the judge. See phase4/llm_backends.py for setup
-details for each.
+paid API model as the judge. See llm_backends.py (project root) for
+setup details for each — including free Gemini API key instructions.
 
 Usage
 -----
@@ -35,12 +35,14 @@ Output
 import argparse
 import json
 import re
+import sys
 import time
 import unicodedata
 from pathlib import Path
 
 import pandas as pd
 
+sys.path.insert(0, str(Path(__file__).parent.parent))  # project root, for llm_backends.py
 from llm_backends import call_llm, check_backend_ready, DEFAULT_MODELS, BACKENDS
 
 VALIDATION_PROMPT = """You are an expert in Telugu language and literature.
@@ -61,12 +63,12 @@ Text:
 {ocr_output}"""
 
 
-def score_page(text: str, backend: str, model: str, max_retries: int = 3) -> dict:
+def score_page(text: str, backend: str, model: str, api_key_env: str = None, max_retries: int = 3) -> dict:
     prompt = VALIDATION_PROMPT.format(ocr_output=text)
     raw = ""
     for attempt in range(max_retries):
         try:
-            raw = call_llm(backend, model, prompt, json_mode=True, max_tokens=700)
+            raw = call_llm(backend, model, prompt, json_mode=True, max_tokens=700, api_key_env=api_key_env)
             try:
                 parsed = json.loads(raw)
                 return {
@@ -102,14 +104,20 @@ def main():
     parser.add_argument("--out", type=Path, default=Path("outputs/phase4"))
     parser.add_argument("--limit", type=int, default=None,
                         help="Only score the first N pages (useful for quick testing)")
-    parser.add_argument("--backend", type=str, default="ollama", choices=BACKENDS,
-                        help="Which LLM backend to use as the judge (default: ollama, local & free)")
+    parser.add_argument("--backend", type=str, default="gemini", choices=BACKENDS,
+                        help="Which LLM backend to use as the judge (default: gemini — Ollama "
+                             "text validation was found to be slow on CPU-only hardware; "
+                             "use --backend ollama to go back to fully local/free)")
     parser.add_argument("--judge-model", type=str, default=None,
                         help="Model name within the chosen backend (default depends on --backend)")
+    parser.add_argument("--api-key-env", type=str, default="GOOGLE_API_KEY_PHASE4",
+                        help="Env var name to read the API key from (default: GOOGLE_API_KEY_PHASE4, "
+                             "falls back to GOOGLE_API_KEY if not set). Lets Phase 4 use a separate "
+                             "Google Cloud project/quota from Phase 3.")
     args = parser.parse_args()
 
     judge_model = args.judge_model or DEFAULT_MODELS[args.backend]
-    check_backend_ready(args.backend)
+    check_backend_ready(args.backend, api_key_env=args.api_key_env)
     args.out.mkdir(parents=True, exist_ok=True)
 
     txt_files = sorted(args.ocr_output.glob("*.txt"))
@@ -127,7 +135,7 @@ def main():
         if not text:
             continue
         print(f"[{i}/{len(txt_files)}] Scoring {txt_path.name}...")
-        result = score_page(text, args.backend, judge_model)
+        result = score_page(text, args.backend, judge_model, api_key_env=args.api_key_env)
         rows.append({"filename": txt_path.name, **result})
 
     df = pd.DataFrame(rows)

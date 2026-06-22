@@ -1,8 +1,11 @@
 ---
 title: "Phase 1 — Corpus Characterization and Problem Scoping"
 subtitle: "Telugu OCR via Large Language Models · CSCI/DASC 6020"
-author: "Author"
-date: "Summer 2026"
+author:
+  - "Tyler Bao"
+  - "Christian Green"
+date: today
+lang: en-US
 format:
   html:
     toc: true

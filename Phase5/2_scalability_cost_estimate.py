@@ -1,7 +1,7 @@
 """
-phase5/1_scalability_cost_estimate.py
+phase5/2_scalability_cost_estimate.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Phase 5, Step 1 — Scalability and Cost Estimate
+Phase 5 — Scalability and Cost Estimate
 
 Given per-page processing time/cost assumptions for each candidate OCR
 model, projects the total time and dollar cost to run the FULL corpus
@@ -17,10 +17,10 @@ actual measured per-page latency once real OCR runs are available
 Usage
 -----
   # Using default published pricing + assumed timing:
-  python phase5/1_scalability_cost_estimate.py --total-pages 32949
+  python phase5/2_scalability_cost_estimate.py --total-pages 32949
 
   # Once you have real measured timing from a test run on N pages:
-  python phase5/1_scalability_cost_estimate.py --total-pages 32949 \\
+  python phase5/2_scalability_cost_estimate.py --total-pages 32949 \\
       --measured-seconds-per-page 3.2 --measured-model "gemini-1.5-pro"
 
 Output

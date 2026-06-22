@@ -33,7 +33,7 @@ surya-ocr>=0.4.0
 # ── LLM APIs (Phase 4 backend options — see phase4/llm_backends.py).
 #    Ollama is the default and needs none of these; install whichever
 #    SDK(s) match the --backend you actually plan to use.) ──────────────────
-google-generativeai>=0.7.0
+google-genai>=0.1.0
 openai>=1.30.0
 anthropic>=0.28.0
 requests>=2.31.0

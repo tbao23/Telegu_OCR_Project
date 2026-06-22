@@ -47,7 +47,8 @@ import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
-sys.path.insert(0, str(SCRIPT_DIR))
+ROOT_DIR = SCRIPT_DIR.parent
+sys.path.insert(0, str(ROOT_DIR))
 from llm_backends import check_backend_ready, DEFAULT_MODELS, BACKENDS  # noqa: E402
 
 OUTPUTS_DIR_DEFAULT = Path("outputs/phase4")
@@ -81,10 +82,14 @@ def main():
     parser.add_argument("--model-name-a", type=str, default="model_a")
     parser.add_argument("--model-name-b", type=str, default="model_b")
     parser.add_argument("--out", type=Path, default=OUTPUTS_DIR_DEFAULT)
-    parser.add_argument("--backend", type=str, default="ollama", choices=BACKENDS,
-                        help="Which LLM backend to use for Methods A/B (default: ollama, local & free)")
+    parser.add_argument("--backend", type=str, default="gemini", choices=BACKENDS,
+                        help="Which LLM backend to use for Methods A/B (default: gemini — Ollama "
+                             "text validation was found to be slow on CPU-only hardware)")
     parser.add_argument("--judge-model", type=str, default=None,
                         help="Model name within the chosen backend (default depends on --backend)")
+    parser.add_argument("--api-key-env", type=str, default="GOOGLE_API_KEY_PHASE4",
+                        help="Env var name for the Gemini API key (default: GOOGLE_API_KEY_PHASE4, "
+                             "falls back to GOOGLE_API_KEY if not set)")
     parser.add_argument("--error-rate-a", type=float, default=0.08)
     parser.add_argument("--error-rate-b", type=float, default=0.15)
     parser.add_argument("--use-synthetic", action="store_true",
@@ -93,6 +98,12 @@ def main():
                         help="Skip synthetic data generation without prompting (use existing --ocr-output-a)")
     parser.add_argument("--skip-cross-model", action="store_true",
                         help="Skip Method C (cross-model agreement) — use if you only have one model's output")
+    parser.add_argument("--validation-limit", type=int, default=100,
+                        help="Cap LLM fluency/error-detection (Methods A/B) to this many pages "
+                             "(default: 100, the assignment's stated minimum). CER/WER and "
+                             "cross-model agreement always run on the FULL ground truth set "
+                             "regardless, since those are free/local computation — only the "
+                             "paid/quota-limited LLM calls are capped. Pass 0 to disable the cap.")
     parser.add_argument("--force", action="store_true",
                         help="Re-run every step even if its output file already exists "
                              "(default: skip steps whose output is already on disk)")
@@ -161,7 +172,7 @@ def main():
 
     if needs_step_2 or needs_step_3:
         try:
-            check_backend_ready(args.backend)
+            check_backend_ready(args.backend, api_key_env=args.api_key_env)
         except SystemExit as e:
             sys.exit(
                 f"\n{e}\n\n"
@@ -174,22 +185,24 @@ def main():
         print(f"\n[SKIP] Step 2 — {fluency_csv} already exists. Use --force to redo.")
         fluency_ok = True
     else:
-        fluency_ok = run_step(
-            "Step 2 — LLM fluency scoring (Method A)",
-            [python, str(SCRIPT_DIR / "2_llm_fluency_score.py"),
-             "--ocr-output", str(args.ocr_output_a), "--model-name", args.model_name_a,
-             "--out", str(args.out), "--backend", args.backend, "--judge-model", judge_model],
-        )
+        cmd2 = [python, str(SCRIPT_DIR / "2_llm_fluency_score.py"),
+                "--ocr-output", str(args.ocr_output_a), "--model-name", args.model_name_a,
+                "--out", str(args.out), "--backend", args.backend, "--judge-model", judge_model,
+                "--api-key-env", args.api_key_env]
+        if args.validation_limit > 0:
+            cmd2 += ["--limit", str(args.validation_limit)]
+        fluency_ok = run_step("Step 2 — LLM fluency scoring (Method A)", cmd2)
 
     if not needs_step_3:
         print(f"\n[SKIP] Step 3 — {error_detect_csv} already exists. Use --force to redo.")
     else:
-        run_step(
-            "Step 3 — LLM error detection (Method B)",
-            [python, str(SCRIPT_DIR / "3_llm_error_detection.py"),
-             "--ocr-output", str(args.ocr_output_a), "--model-name", args.model_name_a,
-             "--out", str(args.out), "--backend", args.backend, "--judge-model", judge_model],
-        )
+        cmd3 = [python, str(SCRIPT_DIR / "3_llm_error_detection.py"),
+                "--ocr-output", str(args.ocr_output_a), "--model-name", args.model_name_a,
+                "--out", str(args.out), "--backend", args.backend, "--judge-model", judge_model,
+                "--api-key-env", args.api_key_env]
+        if args.validation_limit > 0:
+            cmd3 += ["--limit", str(args.validation_limit)]
+        run_step("Step 3 — LLM error detection (Method B)", cmd3)
 
     # ── Step 4: Cross-model agreement (needs model B's output) ─────────────────
     b_exists = args.ocr_output_b.exists() and any(args.ocr_output_b.glob("*.txt"))

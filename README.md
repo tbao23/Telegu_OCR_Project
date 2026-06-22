@@ -8,19 +8,31 @@ An end-to-end pipeline for converting scanned Telugu document images into clean 
 telugu-ocr-project/
 ├── README.md
 ├── requirements.txt
-├── .gitignore                     # Excludes data/ from version control
+├── llm_backends.py             # Shared LLM abstraction (ollama/anthropic/openai/gemini) — used by Phase 3 & 4
+├── run_all.py                  # Master orchestrator — runs all 5 phases end to end
+├── final_report.qmd            # Final project report (all 5 phases)
+├── references.bib             # Bibliography for final_report.qmd
+├── presentation_notes.md       # Running notes for the recorded presentation
+├── .gitignore                  # Excludes data/ from version control
 ├── phase1/                    # Corpus Characterization (Week 1)
 │   ├── run_phase1.py              # Orchestrator — runs steps 0-3 in order
 │   ├── 0_download_corpus.py       # Download corpus from HuggingFace
 │   ├── 1_build_profile.py         # Build corpus_profile.json from meta.json files
 │   ├── 2_corpus_characterize.py   # Profile corpus statistics, generate charts
 │   ├── 3_sample_ground_truth.py   # Select 30–50 pages for manual annotation
-│   └── phase1_report.qmd          # Written deliverable
+│   ├── optional_restore_ground_truth.py  # Restore a previously-annotated sample
+│   ├── optional_lock_ground_truth.py     # Verify ground truth matches an annotation
+│   └── phase1_report.qmd          # Phase 1 written deliverable
 ├── phase2/                    # Preprocessing Pipeline (Week 2)
+│   ├── run_phase2.py               # Orchestrator
+│   └── 1_preprocess_images.py     # Image preprocessing (grayscale, denoise, binarize)
 ├── phase3/                    # OCR Pipeline (Week 3)
+│   ├── run_phase3.py              # Orchestrator — chains sampling → preprocessing → OCR → comparison
+│   ├── 0_sample_corpus_for_ocr.py # OPTIONAL: sample 100+ pages from the full corpus
+│   ├── 1_run_ocr.py               # Run OCR (tesseract / gemini / qwen3vl / easyocr)
+│   └── 2_compare_ocr_models.py    # CER/WER comparison against reference text
 ├── phase4/                    # Validation Framework (Week 4)
 │   ├── run_phase4.py                  # Orchestrator — runs steps 0-5 in order
-│   ├── llm_backends.py                # Shared LLM abstraction: ollama/anthropic/openai/gemini
 │   ├── 0_make_synthetic_test_data.py  # TEST-ONLY: fake OCR output for dev/testing
 │   ├── 1_compute_cer_wer.py           # Classical CER/WER metrics
 │   ├── 2_llm_fluency_score.py         # LLM Method A: fluency scoring (backend-configurable)
@@ -28,17 +40,35 @@ telugu-ocr-project/
 │   ├── 4_cross_model_agreement.py     # LLM Method C: cross-model agreement
 │   └── 5_calibration_analysis.py      # Correlates LLM scores against real CER/WER
 ├── phase5/                    # Analysis & Final Report (Weeks 5–6)
-│   ├── run_phase5.py                  # Orchestrator — runs steps 0-1 in order
-│   ├── 0_error_categorization.py      # Classifies error types (substitution/diacritic/etc.)
-│   └── 1_scalability_cost_estimate.py # Full-corpus time/cost projection
+│   ├── run_phase5.py                  # Orchestrator — runs steps 1-2 in order
+│   ├── 1_error_categorization.py      # Classifies error types (substitution/diacritic/etc.)
+│   └── 2_scalability_cost_estimate.py # Full-corpus time/cost projection
 ├── data/                      # NOT committed to git (see .gitignore)
 │   ├── corpus/                    # Downloaded dataset
-│   ├── ground_truth/              # Manually annotated pages (30–50)
+│   ├── ground_truth/              # Phase 1's manually annotated 40-page sample
+│   ├── ocr_sample/                 # Phase 3's larger corpus-wide sample (100-500+ pages)
 │   └── synthetic_ocr_output/      # TEST-ONLY fake OCR output (phase4/0_...)
-└── outputs/                   # Generated charts, stats (committed to git)
+└── outputs/                   # ALL generated charts/stats/results (committed to git)
+    ├── phase1/                     # corpus_stats.json, quality_dist.png, etc.
+    ├── phase2/                     # preprocessed_images/, preprocessing_report.csv, sample_comparisons/
+    ├── phase3/                     # tesseract/, gemini/, metrics/ (OCR output + comparison)
     ├── phase4/                     # CER/WER, fluency, agreement, calibration results
     └── phase5/                     # Error categories, cost estimates
 ```
+
+## Phase Documentation
+
+Each phase folder has its own README with that phase's full step-by-step
+instructions. This root README covers project-wide setup and a condensed
+quickstart; the phase READMEs are the authoritative detail reference.
+
+| Phase | README |
+|---|---|
+| 1 — Corpus Characterization | [phase1/README.md](phase1/README.md) |
+| 2 — Image Preprocessing | [phase2/README.md](phase2/README.md) |
+| 3 — OCR Pipeline & Model Comparison | [phase3/README.md](phase3/README.md) |
+| 4 — LLM-Assisted Validation | [phase4/README.md](phase4/README.md) |
+| 5 — Analysis & Final Report | [phase5/README.md](phase5/README.md) |
 
 ## Dataset
 
@@ -59,7 +89,8 @@ Python packages) — install them separately before running anything:
 | Git | Clone/version the repo | [git-scm.com](https://git-scm.com) |
 | Quarto | Renders `phase1_report.qmd` to HTML/PDF | [quarto.org/docs/get-started](https://quarto.org/docs/get-started) (already bundled with RStudio if installed) |
 | TinyTeX | Required only for **PDF** output | After installing Quarto, run: `quarto install tinytex` |
-| Ollama | Runs Phase 4 LLM validation (Methods A & B) **locally and free** — no API key, no per-token cost | [ollama.com/download](https://ollama.com/download), then `ollama pull qwen3:8b` |
+| Ollama | Runs Phase 3 vision-LLM OCR (`qwen3vl`) and Phase 4 LLM validation (Methods A & B) **locally and free** — no API key, no per-token cost | [ollama.com/download](https://ollama.com/download), then `ollama pull qwen3:8b` and `ollama pull qwen3-vl:8b` |
+| Tesseract OCR + Telugu pack | Phase 3's free baseline OCR engine | `apt install tesseract-ocr tesseract-ocr-tel` (Linux) or [github.com/UB-Mannheim/tesseract/wiki](https://github.com/UB-Mannheim/tesseract/wiki) (Windows installer) |
 
 Verify each with:
 ```bash
@@ -67,6 +98,7 @@ python --version
 git --version
 quarto --version
 ollama --version
+tesseract --version
 ```
 
 ::: {.callout-note}
@@ -123,6 +155,27 @@ Either way, the two steps that remain manual are:
    ```
 
 Each script prints a "Next step" hint when it finishes.
+
+## Phase 2/3 Quickstart — Preprocessing & OCR
+
+```bash
+# Run both phases with one command each
+python phase2/run_phase2.py
+python phase3/run_phase3.py
+```
+
+`run_phase3.py` defaults to the existing 40-page Phase 1 ground truth and
+runs Tesseract + Qwen3-VL (via Ollama, free, no API key). To scale up to a
+larger sample from the full corpus instead:
+
+```bash
+python phase3/run_phase3.py --use-corpus-sample --sample-size 100   # Phase 4 minimum
+python phase3/run_phase3.py --use-corpus-sample --sample-size 500   # final deliverable minimum
+```
+
+Both orchestrators are resumable (`--force` to redo) and hard-fail with a
+clear message if a required tool isn't ready (e.g. Ollama for `qwen3vl`,
+Tesseract not installed/found).
 
 ## Phase 4/5 Quickstart — Validation & Analysis
 
@@ -185,8 +238,8 @@ python phase4/2_llm_fluency_score.py --ocr-output data/synthetic_ocr_output/mode
 python phase4/3_llm_error_detection.py --ocr-output data/synthetic_ocr_output/model_a --model-name model_a
 python phase4/4_cross_model_agreement.py --output-a data/synthetic_ocr_output/model_a --output-b data/synthetic_ocr_output/model_b
 python phase4/5_calibration_analysis.py --cer-wer-csv outputs/phase4/cer_wer_model_a.csv --fluency-csv outputs/phase4/fluency_model_a.csv
-python phase5/0_error_categorization.py --ground-truth data/ground_truth --ocr-output data/synthetic_ocr_output/model_a --model-name model_a
-python phase5/1_scalability_cost_estimate.py --total-pages 32949
+python phase5/1_error_categorization.py --ground-truth data/ground_truth --ocr-output data/synthetic_ocr_output/model_a --model-name model_a
+python phase5/2_scalability_cost_estimate.py --total-pages 32949
 ```
 
 **Once real Phase 3 OCR output exists**, swap `data/synthetic_ocr_output/model_a`

@@ -1,7 +1,7 @@
 """
-phase5/0_error_categorization.py
+phase5/1_error_categorization.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Phase 5, Step 0 — Error Type Categorization
+Phase 5 — Error Type Categorization
 
 Goes beyond a single CER number: classifies *what kind* of errors occur
 between ground truth and OCR output. The assignment specifically asks
@@ -24,7 +24,7 @@ Phase 3 deliverables.
 
 Usage
 -----
-  python phase5/0_error_categorization.py \\
+  python phase5/1_error_categorization.py \\
       --ground-truth data/ground_truth \\
       --ocr-output data/synthetic_ocr_output/model_a \\
       --model-name model_a \\

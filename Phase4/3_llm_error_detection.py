@@ -8,8 +8,9 @@ Telugu morphology and vocabulary, and suggest corrections. Like Method A,
 this requires no ground truth and scales to the full corpus.
 
 Backend is configurable via --backend (ollama/anthropic/openai/gemini).
-See phase4/llm_backends.py for setup details for each. Ollama (local,
-free) is the default.
+See llm_backends.py (project root) for setup details for each,
+including free Gemini API key instructions. Ollama (local, free) is
+the default.
 
 Usage
 -----
@@ -26,12 +27,14 @@ Output
 
 import argparse
 import re
+import sys
 import time
 import unicodedata
 from pathlib import Path
 
 import pandas as pd
 
+sys.path.insert(0, str(Path(__file__).parent.parent))  # project root, for llm_backends.py
 from llm_backends import call_llm, check_backend_ready, DEFAULT_MODELS, BACKENDS
 
 ERROR_DETECTION_PROMPT = """You are a Telugu language expert and proofreader.
@@ -50,11 +53,11 @@ Text:
 {ocr_output}"""
 
 
-def detect_errors(text: str, backend: str, model: str, max_retries: int = 3) -> dict:
+def detect_errors(text: str, backend: str, model: str, api_key_env: str = None, max_retries: int = 3) -> dict:
     prompt = ERROR_DETECTION_PROMPT.format(ocr_output=text)
     for attempt in range(max_retries):
         try:
-            raw = call_llm(backend, model, prompt, json_mode=False, max_tokens=700)
+            raw = call_llm(backend, model, prompt, json_mode=False, max_tokens=700, api_key_env=api_key_env)
             if raw == "NO_ERRORS_DETECTED" or "NO_ERRORS_DETECTED" in raw:
                 return {"num_flagged_errors": 0, "raw_response": raw}
             findings = re.findall(r".+->.+", raw)
@@ -72,14 +75,18 @@ def main():
     parser.add_argument("--model-name", type=str, required=True)
     parser.add_argument("--out", type=Path, default=Path("outputs/phase4"))
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--backend", type=str, default="ollama", choices=BACKENDS,
-                        help="Which LLM backend to use as the judge (default: ollama, local & free)")
+    parser.add_argument("--backend", type=str, default="gemini", choices=BACKENDS,
+                        help="Which LLM backend to use as the judge (default: gemini — see "
+                             "2_llm_fluency_score.py for why; use --backend ollama for fully local/free)")
     parser.add_argument("--judge-model", type=str, default=None,
                         help="Model name within the chosen backend (default depends on --backend)")
+    parser.add_argument("--api-key-env", type=str, default="GOOGLE_API_KEY_PHASE4",
+                        help="Env var name to read the API key from (default: GOOGLE_API_KEY_PHASE4, "
+                             "falls back to GOOGLE_API_KEY if not set).")
     args = parser.parse_args()
 
     judge_model = args.judge_model or DEFAULT_MODELS[args.backend]
-    check_backend_ready(args.backend)
+    check_backend_ready(args.backend, api_key_env=args.api_key_env)
     args.out.mkdir(parents=True, exist_ok=True)
 
     txt_files = sorted(args.ocr_output.glob("*.txt"))
@@ -97,7 +104,7 @@ def main():
         if not text:
             continue
         print(f"[{i}/{len(txt_files)}] Checking {txt_path.name}...")
-        result = detect_errors(text, args.backend, judge_model)
+        result = detect_errors(text, args.backend, judge_model, api_key_env=args.api_key_env)
         rows.append({"filename": txt_path.name, **result})
 
     df = pd.DataFrame(rows)

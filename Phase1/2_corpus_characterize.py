@@ -20,10 +20,10 @@ Usage
 
 Output
 ------
-  outputs/corpus_stats.json    — Machine-readable summary
-  outputs/quality_dist.png     — Quality level distribution chart
-  outputs/telugu_ratio_dist.png — Telugu script ratio histogram
-  outputs/size_dist.png        — Pages-per-book distribution
+  outputs/phase1/corpus_stats.json    — Machine-readable summary
+  outputs/phase1/quality_dist.png     — Quality level distribution chart
+  outputs/phase1/telugu_ratio_dist.png — Telugu script ratio histogram
+  outputs/phase1/size_dist.png        — Pages-per-book distribution
 """
 
 import argparse
@@ -294,7 +294,7 @@ def main():
                         help="Path to corpus_profile.json (overrides --corpus-dir lookup)")
     parser.add_argument("--download", action="store_true",
                         help="Download dataset from HuggingFace before characterizing")
-    parser.add_argument("--out-dir", type=Path, default=Path("outputs"),
+    parser.add_argument("--out-dir", type=Path, default=Path("outputs/phase1"),
                         help="Directory for output files")
     parser.add_argument("--skip-images", action="store_true",
                         help="Skip image sampling (faster, no PIL required)")
