@@ -49,6 +49,10 @@ def main():
     parser.add_argument("--total-pages", type=int, default=32949,
                         help="Total pages in the full corpus, for the cost estimate")
     parser.add_argument("--out", type=Path, default=Path("outputs/phase5"))
+    parser.add_argument("--force", action="store_true",
+                        help="No-op — Phase 5's two steps have no skip-if-exists logic and always "
+                             "re-run regardless. Accepted only so run_all.py's --force pass-through "
+                             "doesn't crash this script.")
     args = parser.parse_args()
 
     python = sys.executable

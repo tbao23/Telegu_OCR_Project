@@ -82,14 +82,16 @@ def main():
     parser.add_argument("--model-name-a", type=str, default="model_a")
     parser.add_argument("--model-name-b", type=str, default="model_b")
     parser.add_argument("--out", type=Path, default=OUTPUTS_DIR_DEFAULT)
-    parser.add_argument("--backend", type=str, default="gemini", choices=BACKENDS,
-                        help="Which LLM backend to use for Methods A/B (default: gemini — Ollama "
-                             "text validation was found to be slow on CPU-only hardware)")
+    parser.add_argument("--backend", type=str, default="anthropic", choices=BACKENDS,
+                        help="Which LLM backend to use for Methods A/B (default: anthropic — Ollama "
+                             "text validation was found to be slow on CPU-only hardware, and Gemini "
+                             "had ongoing rate-limit/auth issues; use --backend ollama for fully "
+                             "local/free)")
     parser.add_argument("--judge-model", type=str, default=None,
                         help="Model name within the chosen backend (default depends on --backend)")
-    parser.add_argument("--api-key-env", type=str, default="GOOGLE_API_KEY_PHASE4",
-                        help="Env var name for the Gemini API key (default: GOOGLE_API_KEY_PHASE4, "
-                             "falls back to GOOGLE_API_KEY if not set)")
+    parser.add_argument("--api-key-env", type=str, default=None,
+                        help="Env var name for the API key, overriding the chosen backend's "
+                             "standard one (e.g. ANTHROPIC_API_KEY, GOOGLE_API_KEY)")
     parser.add_argument("--error-rate-a", type=float, default=0.08)
     parser.add_argument("--error-rate-b", type=float, default=0.15)
     parser.add_argument("--use-synthetic", action="store_true",
@@ -187,8 +189,9 @@ def main():
     else:
         cmd2 = [python, str(SCRIPT_DIR / "2_llm_fluency_score.py"),
                 "--ocr-output", str(args.ocr_output_a), "--model-name", args.model_name_a,
-                "--out", str(args.out), "--backend", args.backend, "--judge-model", judge_model,
-                "--api-key-env", args.api_key_env]
+                "--out", str(args.out), "--backend", args.backend, "--judge-model", judge_model]
+        if args.api_key_env:
+            cmd2 += ["--api-key-env", args.api_key_env]
         if args.validation_limit > 0:
             cmd2 += ["--limit", str(args.validation_limit)]
         fluency_ok = run_step("Step 2 — LLM fluency scoring (Method A)", cmd2)
@@ -198,8 +201,9 @@ def main():
     else:
         cmd3 = [python, str(SCRIPT_DIR / "3_llm_error_detection.py"),
                 "--ocr-output", str(args.ocr_output_a), "--model-name", args.model_name_a,
-                "--out", str(args.out), "--backend", args.backend, "--judge-model", judge_model,
-                "--api-key-env", args.api_key_env]
+                "--out", str(args.out), "--backend", args.backend, "--judge-model", judge_model]
+        if args.api_key_env:
+            cmd3 += ["--api-key-env", args.api_key_env]
         if args.validation_limit > 0:
             cmd3 += ["--limit", str(args.validation_limit)]
         run_step("Step 3 — LLM error detection (Method B)", cmd3)

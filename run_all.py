@@ -84,9 +84,11 @@ def main():
                         help="Pages to use for Phase 4's LLM validation (default: 100, the "
                              "assignment's stated minimum — kept separate from --sample-size "
                              "since using all 500 there would waste API quota for no rubric benefit)")
-    parser.add_argument("--models", type=str, default="gemini,tesseract",
-                        help="OCR models to run in Phase 3 (default: gemini,tesseract — gemini "
-                             "first/primary since it's the model validated in Phase 4/5)")
+    parser.add_argument("--models", type=str, default="claude,tesseract",
+                        help="OCR models to run in Phase 3 (default: claude,tesseract — claude "
+                             "first/primary since it's the model validated in Phase 4/5; Gemini "
+                             "abandoned due to ongoing rate-limit/auth issues with its new key "
+                             "format, see llm_backends.py)")
     parser.add_argument("--force", action="store_true",
                         help="Re-run every step regardless of existing output (passed through to "
                              "every phase, including Phase 1 if a new sample is being created)")

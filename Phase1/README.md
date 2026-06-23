@@ -30,7 +30,7 @@ index that Steps 2 and 3 both read from.
 ### 2. Characterize the corpus
 
 ```
-python phase1/2_corpus_characterize.py --profile-json data/corpus/corpus_profile.json --skip-images
+python phase1/2_corpus_characterize.py --profile-json data/corpus/corpus_profile.json
 ```
 
 Generates corpus-wide statistics and charts (quality distribution, pages

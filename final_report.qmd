@@ -68,7 +68,7 @@ ocr_summary = load_csv("outputs/phase3/metrics/ocr_summary.csv", "Phase 3 OCR co
 ocr_results = load_csv("outputs/phase3/metrics/ocr_comparison_results.csv", "Phase 3 detailed results")
 calibration = load_json("outputs/phase4/calibration_summary.json", "Phase 4 calibration")
 agreement = load_csv("outputs/phase4/cross_model_agreement.csv", "Phase 4 cross-model agreement")
-error_cats = load_json("outputs/phase5/error_categories_gemini_summary.json", "Phase 5 error categorization")
+error_cats = load_json("outputs/phase5/error_categories_claude_summary.json", "Phase 5 error categorization")
 cost_estimate = load_json("outputs/phase5/scalability_cost_estimate.json", "Phase 5 cost estimate")
 ```
 
@@ -108,7 +108,7 @@ Despite its speaker population, Telugu remains comparatively
 under-served by OCR tooling relative to high-resource languages and
 even relative to some other Indic scripts — a gap this project
 investigates directly by comparing a long-standing free baseline
-(Tesseract) against a modern vision-capable LLM (Google's Gemini).
+(Tesseract) against a modern vision-capable LLM (Anthropic's Claude).
 
 The project's broader goal, as emphasized in the course's project
 guidance, was not merely to produce text from scanned images but to
@@ -125,8 +125,8 @@ process rather than from the initial pipeline design.
 Per course guidance to rely on tested libraries rather than
 reimplementing core algorithms, this project uses: `jiwer` for all
 CER/WER computation, `opencv-python` for image preprocessing,
-`pytesseract` for the classical OCR baseline, the official `google-genai`
-SDK for Gemini API access, `pandas`/`numpy` for data handling, and
+`pytesseract` for the classical OCR baseline, the official `anthropic`
+SDK for Claude API access, `pandas`/`numpy` for data handling, and
 `scipy` for statistical correlation in the calibration analysis. One
 early version of the Phase 3 comparison script contained a hand-rolled
 Levenshtein/CER/WER implementation; this was identified and replaced
@@ -332,18 +332,74 @@ else:
 ## Methodology
 
 Two OCR engines were compared: **Tesseract** (with the Telugu
-language pack) as a free, classical baseline, and **Gemini** (a
-vision-capable LLM) as the project's primary LLM-based OCR method.
-Gemini was selected over a local open-weights alternative
-(Qwen3-VL via Ollama) primarily for **throughput**: local vision
-inference on CPU-only hardware was measured to be substantially
-slower than a hosted API call, a meaningful constraint given the
-target sample sizes (500 pages for the corpus-wide deliverable, 100+
-for LLM validation). Gemini's free tier (rate-limited but
-no-cost) was sufficient to cover the project's API usage; a key-
-rotation mechanism across multiple free-tier projects was implemented
-to handle the per-project daily quota cap transparently (see
-[AI Tool Usage Disclosure](#ai-tool-usage-disclosure)).
+language pack) as a free, classical baseline, and **Claude**
+(Anthropic's vision-capable LLM) as the project's primary LLM-based
+OCR method.
+
+### Model Selection: An Iterative Decision, Not a One-Time Choice
+
+The choice of LLM-based OCR model changed twice over the course of
+this project, and the reasons for each change are documented here
+deliberately — they are themselves a concrete example of the
+"experiment, measure, iterate" workflow the course materials
+emphasize as the actual point of an applied ML project.
+
+1. **Initial choice: Qwen3-VL via local Ollama.** Selected first for
+   zero marginal cost. Measured local CPU-bound inference throughput
+   made this impractical at the target sample sizes (500 pages for
+   the corpus-wide deliverable, 100+ for LLM validation) within the
+   project's time constraints.
+2. **Second choice: Gemini (Google AI Studio), free tier.** Selected
+   for its no-cost API access and (per the assignment's own materials)
+   reported strength on Indic scripts. In practice, this surfaced two
+   compounding real-world issues not evident from documentation alone:
+   - **Content-safety blocking.** Gemini's API occasionally refused to
+     return OCR output for pages from older, copyrighted Telugu
+     literature, returning a `RECITATION`/`SAFETY` finish reason
+     instead of the requested transcription — an LLM-specific failure
+     mode with no equivalent in classical OCR, and one that a
+     non-LLM-based pipeline would never need to handle.
+   - **Free-tier authentication instability.** During the project's
+     final week, Google rolled out a new API key format (prefixed
+     `AQ.` instead of the legacy `AIza...`) that was, at the time,
+     incompatible with the standard SDK authentication flow for
+     several days — a platform-side bug independently reported by
+     other developers, not something fixable in this codebase. A
+     REST-based workaround was implemented (bypassing the SDK's
+     header-based auth in favor of the legacy query-parameter style)
+     before the decision below was made.
+3. **Final choice: Claude (Anthropic), paid API.** Given the combined
+   reliability issues above and persistent free-tier rate-limit
+   friction even after the authentication workaround, the project
+   moved to Anthropic's API directly. This is the configuration used
+   for all results reported below. The switch itself is a substantive
+   finding: **for a real, time-constrained project, a vendor's
+   documented capability is necessary but not sufficient — operational
+   reliability (auth stability, content-policy behavior, rate-limit
+   headroom) determined the final model choice as much as raw OCR
+   accuracy did.**
+
+### Cost-Aware Model Selection Within Anthropic
+
+Two different Claude models are used for two different tasks in this
+project, deliberately sized to each task's actual demands rather than
+defaulting to the most capable (and most expensive) model everywhere:
+
+- **Claude Sonnet** for OCR extraction (Phase 3) — the higher-stakes
+  task, where careful character-level accuracy on dense Telugu text
+  justifies the larger model.
+- **Claude Haiku** for LLM validation (Phase 4, Methods A/B) — a
+  comparatively lighter judging/scoring task run at higher volume
+  (every validated page, twice), where a smaller, faster, cheaper
+  model is the appropriate tool rather than over-provisioning.
+
+Error handling for the Anthropic backend includes automatic retry
+with exponential backoff on rate-limit and server-error responses,
+and instant rotation across multiple API keys if more than one is
+configured — unlike Gemini's per-project-per-day quota (where only a
+*different* project's quota helps), Anthropic's rate limits are
+per-minute, so backoff-then-retry is itself an effective recovery
+strategy, not just a stopgap.
 
 A second, independent 500-page sample was drawn from the full corpus
 (distinct from the Phase 1 ground-truth sample) using the same
@@ -411,7 +467,7 @@ assignment's specification:
 - **Method B (Error detection)** — an LLM identifies specific
   morphologically implausible words/sequences and suggests
   corrections.
-- **Method C (Cross-model agreement)** — Tesseract and Gemini outputs
+- **Method C (Cross-model agreement)** — Tesseract and Claude outputs
   on the same pages are compared directly (via `difflib`); low
   agreement flags a page for review without needing ground truth at
   all.
@@ -438,9 +494,12 @@ fixed during development:
    was measured to be a practical bottleneck at the 100+ page scale
    required for Phase 4. The validation backend was made fully
    configurable (Ollama, Gemini, Anthropic, or OpenAI, selected via a
-   single flag) and Gemini was adopted as the default for Methods A/B
-   specifically for throughput, while Ollama remains fully supported
-   and zero-cost for anyone reproducing this work without API access.
+   single flag) — Gemini was tried first for throughput, but
+   reliability issues (see Phase 3's Model Selection discussion above)
+   led to Anthropic being adopted as the default for Methods A/B,
+   using the smaller/cheaper Claude Haiku model specifically for this
+   lighter judging task. Ollama remains fully supported and zero-cost
+   for anyone reproducing this work without API access.
 
 ## Results
 
@@ -521,10 +580,65 @@ authoritative, as LLM API pricing changes frequently.
 
 ## Failure Mode Discussion
 
-*(To be completed with reference to the final Phase 3/4/5 results —
-specific examples of pages where Gemini and Tesseract disagreed most,
-and what those pages have in common: scan quality, font era, layout
-complexity, or genuine linguistic ambiguity.)*
+Three results, read together, point to a coherent picture of *how*
+Claude's OCR output diverges from the reference text — not just *how
+much*:
+
+**1. Cross-model agreement is low (mean 0.30; 433 of 500 pages flagged
+for review at the agreement < 0.7 threshold)** — substantially lower
+than the ~0.70-0.80 agreement that two independent OCR engines might be
+expected to show on the same clean scans, even accounting for
+Tesseract's weaker baseline accuracy. This means Claude and Tesseract
+aren't just making slightly different small mistakes on the same
+pages — they're frequently diverging in substantial ways, which is
+itself useful: a high-disagreement page is a reasonable trigger for
+manual review even without any ground truth at all.
+
+**2. Error type breakdown shows deletions as the dominant category**
+(58,897 deletions vs. 44,235 substitutions and 41,879 insertions
+across 500 pages — roughly 118 deletions/page on average). Claude's
+errors are not primarily "wrong character instead of right character"
+(substitution) but more often **omission** — skipping text rather than
+guessing at it. This is a meaningfully different failure mode than a
+classical OCR engine like Tesseract, which tends to substitute
+visually similar glyphs rather than drop content outright. A plausible
+explanation: when faced with a genuinely ambiguous or degraded region
+(dense conjunct clusters, faded ink, marginalia), an LLM-based OCR
+model has the option to simply not transcribe it, whereas a
+character-by-character classical engine has no equivalent "skip"
+behavior — it must output *something* for each detected glyph region.
+This is a safer failure mode in principle (omission is usually easier
+to detect than confident-sounding fabrication), except where it
+crosses into outright **page truncation** — flagged on 8 of 500 pages
+(1.6%) — where the model appears to have stopped transcribing partway
+through a page rather than completing it.
+
+**3. Hallucination is rare but real**: 15 of 500 pages (3%) were
+flagged for content not present in the source. Combined with the
+deletion-dominant pattern above, this suggests Claude's primary error
+mode under difficulty is *conservative* (omit rather than fabricate),
+with confident fabrication as a real but secondary failure mode.
+
+**4. Fluency scores are notably low (mean 2.16/5) relative to
+character-level accuracy (CER ≈ 0.18-0.19, i.e., roughly 81-82% of
+characters correct)** — a number that on its own might suggest "mostly
+right." This mismatch is itself informative: a moderate CER doesn't
+guarantee fluent, coherent text, particularly when errors cluster
+(e.g., several consecutive dropped characters breaking a word) rather
+than scattering randomly. It also helps explain the weaker-than-hoped
+calibration correlation discussed in [Phase 4 Results](#results-1) —
+fluency and character-level accuracy are related but are not measuring
+exactly the same thing, and a judge model scoring fluency is
+reasonably picking up on a real, distinct signal (readability/
+coherence) rather than simply failing to track CER.
+
+**5. Only 21.4% of substitution errors are diacritic-related** — lower
+than might be expected for a script with Telugu's diacritic density,
+and notably lower than the Phase 1 manual annotation's artifact
+taxonomy might suggest in isolation. This indicates that for this
+corpus and this model, diacritic/mātrā confusion, while real and
+worth continued attention, is not the dominant driver of OCR error —
+omission and broader substitution errors matter more in aggregate.
 
 ---
 
@@ -539,35 +653,99 @@ complexity, or genuine linguistic ambiguity.)*
 - Local LLM judge quality (Qwen3, when used) is measurably weaker on
   Telugu than the paid/free-tier-API alternatives — a real
   cost/accuracy tradeoff documented but not fully resolved here.
-- Free-tier API rate and daily quota limits constrained the practical
-  sample sizes used; the scalability estimate in Phase 5 projects
-  beyond what was directly tested.
+- Paid-API rate limits and per-page latency (Claude Sonnet measured at
+  ~37 seconds/page) constrained the practical sample size to 500 pages
+  rather than the full corpus; Phase 5's scalability estimate projects
+  beyond what was directly tested, using this project's own measured
+  timing rather than a generic assumption.
 
 # Conclusions
 
-*(To be finalized once final results are in — will synthesize the
-overall model comparison, whether LLM-based validation proved a
-reliable proxy for ground-truth accuracy, and the practical
-cost/throughput tradeoffs observed.)*
+This project set out to build and evaluate a Telugu OCR pipeline
+combining a classical baseline (Tesseract) with a modern vision-
+capable LLM (Claude), alongside an LLM-based validation framework
+intended to substitute for, or supplement, ground-truth comparison at
+scale. Three conclusions follow directly from the real results above.
+
+**Claude meaningfully outperforms Tesseract on this corpus, but at a
+real cost.** Mean CER across 500 real corpus pages was 0.185 for
+Claude versus 0.231 for Tesseract (excluding statistically unstable
+short-reference pages) — roughly a 20% relative improvement. That
+improvement is not free: Claude's real measured throughput (~37
+seconds/page) is over 50× slower than Tesseract's (~0.66 seconds/page),
+and processing the full ~32,949-page corpus would cost an estimated
+$725 and take on the order of two weeks serial (or a few days with
+5×parallelization) versus Tesseract's free, same-day completion. For
+this corpus specifically, Tesseract's accuracy gap may be acceptable
+for some use cases (e.g., a first-pass searchable-text index), while
+Claude's improvement is more clearly justified where transcription
+quality is the primary goal — a genuine cost/accuracy tradeoff this
+project can now quantify rather than only assume.
+
+**LLM-based validation produced real, usable signal, but did not fully
+match the originally hoped-for tight correlation with ground-truth
+CER.** Method C (cross-model agreement, no ground truth needed at all)
+correctly flagged 433 of 500 pages for review — a usable, zero-
+ground-truth screening signal on its own. Methods A and B (fluency
+scoring, error detection) showed a real but moderate relationship to
+true CER: Pearson r = -0.33, Spearman r = -0.60. The gap between these
+two correlation measures, combined with the Failure Mode Discussion's
+finding that fluency and character-level accuracy capture related but
+distinct signals, suggests LLM-based fluency scoring is better
+interpreted as a *complementary* quality signal — useful for relative
+ranking and triage — rather than a drop-in numerical proxy for CER.
+This is an honest, qualified finding, not a failure: the assignment's
+core premise (LLM validation can provide useful signal without ground
+truth) holds, with the caveat that "useful signal" and "tightly
+calibrated proxy" are different bars, and only the first was clearly
+met here.
+
+**The most transferable lesson from this project may be procedural,
+not numerical.** Two of the most substantive findings — the Unicode
+filename bug and the histogram-equalization preprocessing bug — were
+discovered only because intermediate results were inspected directly
+rather than trusted by default, and the project's OCR model itself
+changed twice (Qwen3-VL → Gemini → Claude) in response to real,
+measured operational problems (throughput, content-safety blocking,
+a platform authentication bug) rather than being fixed at the outset.
+Both point to the same broader takeaway, consistent with the course's
+stated framing of this project: in applied machine learning, the
+decisions that most affect outcome quality are frequently about data
+handling, tool selection under real-world constraints, and willingness
+to revise an initial plan — not the choice of any single algorithm.
 
 ---
 
 # AI Tool Usage Disclosure
 
 Per the course's policy on LLM-based coding assistants, the following
-summarizes how such tools were used across this project:
+summarizes how such tools were used across this project. Note that
+"Claude" appears in two **distinct** roles below — as the AI coding
+assistant used to build this project, and separately, as the actual
+OCR/validation model running *inside* the finished pipeline (Phase 3
+and Phase 4's chosen LLM, per the Model Selection discussion in
+Phase 3). These are not the same usage and are called out separately:
 
-- **Claude (Anthropic)** was used throughout to scaffold the project's
-  Python scripts (all five phases' pipeline stages and orchestrators),
-  debug environment and dependency issues (numpy/pandas version
-  conflicts, Unicode encoding, HuggingFace and Gemini API rate-limit
-  handling), and draft this report's structure and prose.
-- **Bugs found and fixed with AI assistance, verified independently
-  by the author**: the Unicode filename handling bug and the
-  histogram-equalization preprocessing bug (Phase 2, detailed above);
-  a hand-rolled CER/WER implementation in an early Phase 3 script
-  was identified as inconsistent with the course's stated preference
-  for established libraries and replaced with `jiwer`.
+- **Claude (Anthropic), as coding assistant**, was used throughout to
+  scaffold the project's Python scripts (all five phases' pipeline
+  stages and orchestrators), debug environment and dependency issues
+  (numpy/pandas version conflicts, Unicode encoding, HuggingFace and
+  Gemini/Anthropic API rate-limit and authentication handling), and
+  draft this report's structure and prose.
+- **Claude (Anthropic), as the pipeline's OCR and validation model**,
+  is a result of the project itself, not an authoring aid — it is the
+  subject being evaluated in Phase 3 (OCR accuracy vs. Tesseract) and
+  the judge model used in Phase 4 (Methods A/B). This usage is the
+  project's actual deliverable, not an academic-integrity disclosure
+  item, but is noted here to avoid any ambiguity given the shared
+  vendor with the coding-assistant usage above.
+- **Bugs found and fixed with AI (coding-assistant) assistance,
+  verified independently by the author**: the Unicode filename
+  handling bug and the histogram-equalization preprocessing bug
+  (Phase 2, detailed above); a hand-rolled CER/WER implementation in
+  an early Phase 3 script was identified as inconsistent with the
+  course's stated preference for established libraries and replaced
+  with `jiwer`.
 - **LLM-assisted ground truth review**: a subset of the Phase 1
   40-page annotation was cross-checked using an LLM-based image-to-
   text comparison workflow to assist with character-level

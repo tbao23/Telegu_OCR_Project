@@ -104,16 +104,16 @@ def main():
     parser.add_argument("--out", type=Path, default=Path("outputs/phase4"))
     parser.add_argument("--limit", type=int, default=None,
                         help="Only score the first N pages (useful for quick testing)")
-    parser.add_argument("--backend", type=str, default="gemini", choices=BACKENDS,
-                        help="Which LLM backend to use as the judge (default: gemini — Ollama "
-                             "text validation was found to be slow on CPU-only hardware; "
-                             "use --backend ollama to go back to fully local/free)")
+    parser.add_argument("--backend", type=str, default="anthropic", choices=BACKENDS,
+                        help="Which LLM backend to use as the judge (default: anthropic — Ollama "
+                             "text validation was found to be slow on CPU-only hardware, and Gemini "
+                             "had ongoing rate-limit/auth issues; use --backend ollama to go back "
+                             "to fully local/free)")
     parser.add_argument("--judge-model", type=str, default=None,
                         help="Model name within the chosen backend (default depends on --backend)")
-    parser.add_argument("--api-key-env", type=str, default="GOOGLE_API_KEY_PHASE4",
-                        help="Env var name to read the API key from (default: GOOGLE_API_KEY_PHASE4, "
-                             "falls back to GOOGLE_API_KEY if not set). Lets Phase 4 use a separate "
-                             "Google Cloud project/quota from Phase 3.")
+    parser.add_argument("--api-key-env", type=str, default=None,
+                        help="Env var name for the API key, overriding the chosen backend's "
+                             "standard one (e.g. ANTHROPIC_API_KEY, GOOGLE_API_KEY)")
     args = parser.parse_args()
 
     judge_model = args.judge_model or DEFAULT_MODELS[args.backend]

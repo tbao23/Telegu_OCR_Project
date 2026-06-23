@@ -44,6 +44,7 @@ from llm_backends import call_llm, check_backend_ready, DEFAULT_VISION_MODELS
 VISION_MODEL_TO_BACKEND = {
     "qwen3vl": "ollama",
     "gemini": "gemini",
+    "claude": "anthropic",
 }
 
 # Per the assignment's recommended prompt structure for vision-LLM Telugu OCR
@@ -104,18 +105,24 @@ def run_vision_ocr(image_path: Path, backend: str, model: str, api_key_env: str 
 def main():
     parser = argparse.ArgumentParser(description="Phase 3 — Run OCR")
     parser.add_argument("--input-dir", type=Path, default=Path("outputs/phase2/preprocessed_images"))
-    parser.add_argument("--model", choices=["tesseract", "easyocr", "qwen3vl", "gemini"], default="tesseract")
+    parser.add_argument("--model", choices=["tesseract", "easyocr", "qwen3vl", "gemini", "claude"], default="tesseract")
     parser.add_argument("--out-root", type=Path, default=Path("outputs/phase3"))
     parser.add_argument("--tesseract-path", type=str, default=os.environ.get("TESSERACT_PATH"),
                         help="Path to tesseract.exe, if not on PATH. Can also set TESSERACT_PATH env var.")
     parser.add_argument("--vision-model", type=str, default=None,
                         help="Specific model name for qwen3vl/gemini (default depends on --model)")
-    parser.add_argument("--api-key-env", type=str, default="GOOGLE_API_KEY_PHASE3",
-                        help="Env var name to read the API key from (default: GOOGLE_API_KEY_PHASE3, "
-                             "falls back to GOOGLE_API_KEY if not set). Lets Phase 3 use a separate "
-                             "Google Cloud project/quota from Phase 4.")
+    parser.add_argument("--api-key-env", type=str, default=None,
+                        help="Env var name for the API key, overriding the chosen backend's "
+                             "standard one (e.g. ANTHROPIC_API_KEY, GOOGLE_API_KEY). Useful if "
+                             "you have multiple keys/projects and want to point a specific phase "
+                             "at a specific one.")
     parser.add_argument("--limit", type=int, default=None,
                         help="Only process the first N images (useful for quick testing)")
+    parser.add_argument("--force", action="store_true",
+                        help="Re-OCR every page even if its output .txt already exists. Without "
+                             "this, pages already completed in a previous (possibly interrupted) "
+                             "run are skipped — critical for paid backends, since otherwise an "
+                             "interruption mid-run forces a full, costly re-pay for everything.")
     args = parser.parse_args()
 
     image_files = sorted(args.input_dir.glob("*.png"))
@@ -138,9 +145,17 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     records = []
+    skipped_already_done = 0
 
     for image_path in tqdm(image_files, desc=f"Running {args.model} OCR"):
-        if args.model == "tesseract":
+        out_file = out_dir / f"{image_path.stem}.txt"
+
+        if out_file.exists() and not args.force:
+            # Already done in a previous (possibly interrupted) run — reuse it
+            # rather than paying for the same page again.
+            text = out_file.read_text(encoding="utf-8")
+            skipped_already_done += 1
+        elif args.model == "tesseract":
             text = run_tesseract(image_path, tesseract_path=args.tesseract_path)
         elif args.model == "easyocr":
             text = run_easyocr(image_path)
@@ -149,8 +164,8 @@ def main():
         else:
             raise ValueError(f"Unsupported model: {args.model}")
 
-        out_file = out_dir / f"{image_path.stem}.txt"
-        out_file.write_text(text, encoding="utf-8")
+        if not (out_file.exists() and not args.force):
+            out_file.write_text(text, encoding="utf-8")
 
         records.append({
             "filename": image_path.name,
@@ -164,6 +179,9 @@ def main():
     pd.DataFrame(records).to_csv(log_path, index=False, encoding="utf-8-sig")
 
     print("\nPhase 3 OCR complete.")
+    if skipped_already_done:
+        print(f"({skipped_already_done}/{len(image_files)} page(s) were already done from a "
+              f"previous run and reused, not re-paid for. Use --force to redo everything.)")
     print(f"OCR text saved to: {out_dir}")
     print(f"OCR log saved to: {log_path}")
     print("\nNext step (point --reference-dir at whichever folder has the matching .txt reference files):")

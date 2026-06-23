@@ -125,6 +125,16 @@ def stratified_sample(df: pd.DataFrame, n: int, rng: np.random.Generator) -> pd.
 
 
 def copy_sample_files(sample_df: pd.DataFrame, out_dir: Path) -> None:
+    # CRITICAL: clear any existing content first. Without this, re-running
+    # with a SMALLER --n than a previous run leaves the old, larger set of
+    # files in place alongside the new ones — every downstream step (Phase 2
+    # preprocessing, Phase 3 OCR) blindly globs whatever's actually in this
+    # directory, not what the manifest says SHOULD be here, so leftover
+    # files get silently (and expensively, for paid OCR models) reprocessed.
+    if out_dir.exists():
+        for f in out_dir.glob("*"):
+            if f.is_file() and f.name != "manifest.csv":
+                f.unlink()
     out_dir.mkdir(parents=True, exist_ok=True)
     for _, row in tqdm(sample_df.iterrows(), total=len(sample_df), desc="Copying files"):
         stem = f"{row['book']}__page_{row['page']:04d}"

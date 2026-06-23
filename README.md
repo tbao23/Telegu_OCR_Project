@@ -89,7 +89,8 @@ Python packages) — install them separately before running anything:
 | Git | Clone/version the repo | [git-scm.com](https://git-scm.com) |
 | Quarto | Renders `phase1_report.qmd` to HTML/PDF | [quarto.org/docs/get-started](https://quarto.org/docs/get-started) (already bundled with RStudio if installed) |
 | TinyTeX | Required only for **PDF** output | After installing Quarto, run: `quarto install tinytex` |
-| Ollama | Runs Phase 3 vision-LLM OCR (`qwen3vl`) and Phase 4 LLM validation (Methods A & B) **locally and free** — no API key, no per-token cost | [ollama.com/download](https://ollama.com/download), then `ollama pull qwen3:8b` and `ollama pull qwen3-vl:8b` |
+| Ollama | Optional — fully local/free fallback for Phase 3 (`qwen3vl`) and Phase 4 validation. Not the default for either; this project's actual results use Claude/Anthropic instead (see below) | [ollama.com/download](https://ollama.com/download), then `ollama pull qwen3:8b` and `ollama pull qwen3-vl:8b` |
+| **Anthropic API key** | **This project's actual default** for Phase 3 OCR (`claude`) and Phase 4 validation. Paid, but cheap at this project's scale (~$13 total measured cost for 580 OCR calls + 200 validation calls — see `phase5/2_scalability_cost_estimate.py`) | [console.anthropic.com](https://console.anthropic.com) — create a key, then `set ANTHROPIC_API_KEY=sk-ant-...` (Windows cmd) or `$env:ANTHROPIC_API_KEY="sk-ant-..."` (PowerShell) |
 | Tesseract OCR + Telugu pack | Phase 3's free baseline OCR engine | `apt install tesseract-ocr tesseract-ocr-tel` (Linux) or [github.com/UB-Mannheim/tesseract/wiki](https://github.com/UB-Mannheim/tesseract/wiki) (Windows installer) |
 
 Verify each with:
@@ -102,15 +103,17 @@ tesseract --version
 ```
 
 ::: {.callout-note}
-**Backend is configurable.** Phase 4's LLM validation (fluency scoring,
-error detection) defaults to local Ollama — free, no API key, no
-per-token cost, at the expense of somewhat weaker Telugu fluency than a
-paid model. Pass `--backend anthropic`, `--backend openai`, or
-`--backend gemini` to any Phase 4 script (or to `run_phase4.py`) to use
-a paid API model as the judge instead — useful for comparing how
-different LLM judges agree with each other, or for higher Telugu
-accuracy if cost isn't a constraint. See `phase4/llm_backends.py` for
-the API key environment variable each backend needs.
+**Backend is configurable.** Phase 3's OCR (`1_run_ocr.py`) and Phase 4's
+LLM validation both default to **Anthropic (Claude)** — this is what this
+project's actual reported results used, after Gemini's free tier turned
+out to have real operational problems (content-safety blocking, an API
+key authentication bug) during development — see `final_report.qmd`'s
+Phase 3 Model Selection discussion. Pass `--backend ollama`, `--backend
+openai`, or `--backend gemini` to any Phase 4 script (or `--model
+qwen3vl`/`gemini` to Phase 3's `1_run_ocr.py`) to use a different backend
+instead. See `llm_backends.py` (project root) for the API key environment
+variable each backend needs, including a multi-key rotation setup for
+handling rate limits at scale.
 :::
 
 ## Quickstart
@@ -142,7 +145,7 @@ debugging a single step, or re-running just one):
 ```bash
 python phase1/0_download_corpus.py
 python phase1/1_build_profile.py --corpus-dir data/corpus/
-python phase1/2_corpus_characterize.py --profile-json data/corpus/corpus_profile.json --skip-images
+python phase1/2_corpus_characterize.py --profile-json data/corpus/corpus_profile.json
 python phase1/3_sample_ground_truth.py --corpus-dir data/corpus/ --n 40 --out data/ground_truth/
 ```
 
@@ -156,95 +159,62 @@ Either way, the two steps that remain manual are:
 
 Each script prints a "Next step" hint when it finishes.
 
-## Phase 2/3 Quickstart — Preprocessing & OCR
+## Full Pipeline Quickstart — Phases 2 through 5
+
+**This is now the recommended way to run everything past Phase 1**, via
+the project-root orchestrator:
 
 ```bash
-# Run both phases with one command each
-python phase2/run_phase2.py
-python phase3/run_phase3.py
+python run_all.py --keep-ground-truth --sample-size 500 --validation-limit 100 --models claude,tesseract --force
 ```
 
-`run_phase3.py` defaults to the existing 40-page Phase 1 ground truth and
-runs Tesseract + Qwen3-VL (via Ollama, free, no API key). To scale up to a
-larger sample from the full corpus instead:
+What this single command does, in order:
+1. Prompts whether to create a new Phase 1 ground-truth sample, or keep
+   your existing one (`--keep-ground-truth` skips the prompt)
+2. Preprocesses the 40-page ground truth (Phase 2)
+3. Runs real OCR on both the raw and preprocessed versions of those same
+   40 pages, with both models — the quantified "does preprocessing
+   actually help" comparison the assignment requires
+4. Samples 500 fresh pages from the full corpus, preprocesses them, runs
+   OCR with both models, compares against reference text (Phase 3)
+5. Runs CER/WER, both LLM validation methods (capped at 100 pages via
+   `--validation-limit`), cross-model agreement, and calibration (Phase 4)
+6. Runs error categorization and the scalability/cost estimate (Phase 5)
+
+**Defaults to Claude + Tesseract** (`--models claude,tesseract`) — make
+sure `ANTHROPIC_API_KEY` is set first (see Prerequisites above). Every
+step is resumable: if interrupted, re-running the identical command picks
+up where it left off, including per-page resumability for OCR calls, so
+an interruption never forces you to re-pay for already-completed pages.
+
+For a quick, cheap smoke test before committing to the full 500-page run:
+```bash
+python run_all.py --keep-ground-truth --sample-size 3 --validation-limit 2 --models claude,tesseract --force
+```
+
+### Render the reports once the pipeline has run
 
 ```bash
-python phase3/run_phase3.py --use-corpus-sample --sample-size 100   # Phase 4 minimum
-python phase3/run_phase3.py --use-corpus-sample --sample-size 500   # final deliverable minimum
+python generate_reports.py
 ```
 
-Both orchestrators are resumable (`--force` to redo) and hard-fail with a
-clear message if a required tool isn't ready (e.g. Ollama for `qwen3vl`,
-Tesseract not installed/found).
+Renders both `phase1/phase1_report.qmd` and `final_report.qmd` to HTML
+and PDF via Quarto. Use `--only phase1` or `--only final` to render just
+one.
 
-## Phase 4/5 Quickstart — Validation & Analysis
-
-These phases need real OCR output from Phase 3. **Until that's ready**,
-the orchestrators below work against synthetic test data generated from
-the Phase 1 ground truth, so the full pipeline can be built and verified
-today.
+### Running phases individually (useful for debugging one step)
 
 ```bash
-# 0. Re-sync dependencies — Phase 4/5 added jiwer, scipy, and requests
-#    to requirements.txt. If you set up your environment before these
-#    were added, re-run this before continuing:
-pip install -r requirements.txt
-
-# 1. One-time: install Ollama and pull the local validation model
-#    (see Prerequisites table above for the download link)
-ollama pull qwen3:8b
+python phase2/run_phase2.py --force
+python phase3/run_phase3.py --use-corpus-sample --sample-size 500 --models claude,tesseract
+python phase4/run_phase4.py --ground-truth data/ocr_sample --ocr-output-a outputs/phase3/claude --model-name-a claude --ocr-output-b outputs/phase3/tesseract --model-name-b tesseract --skip-synthetic --validation-limit 100
+python phase5/run_phase5.py --ground-truth data/ocr_sample --ocr-output outputs/phase3/claude --model-name claude --total-pages 32949
 ```
 
-**Option A — run everything with two commands:**
-
-```bash
-python phase4/run_phase4.py
-python phase5/run_phase5.py
-```
-
-`run_phase4.py` will ask whether to generate synthetic test data (answer
-`n` once you have real Phase 3 output, pointing `--ocr-output-a` at it
-instead). It runs CER/WER, both LLM validation methods, cross-model
-agreement, and calibration in order. **If the chosen LLM backend isn't
-ready (Ollama not running, or an API key missing), it stops immediately
-with a clear error** rather than silently skipping — CER/WER results
-computed before that point are still saved.
-
-**It's also resumable**: each step skips itself automatically if its
-output already exists, so re-running after a partial failure won't
-redo expensive LLM calls you've already completed. Use `--force` to
-redo every step regardless:
-
-```bash
-python phase4/run_phase4.py --backend anthropic    # use Claude as judge instead
-python phase4/run_phase4.py --backend ollama --judge-model qwen3:14b
-python phase4/run_phase4.py --force                 # redo everything from scratch
-```
-
-```bash
-python phase4/run_phase4.py --skip-cross-model   # if you only have one model's output
-python phase4/run_phase4.py --use-synthetic       # force synthetic data, no prompt
-python phase5/run_phase5.py --total-pages 32949   # uses your real corpus size
-```
-
-**Option B — run each numbered script individually** (useful for
-debugging a single step):
-
-```bash
-python phase4/0_make_synthetic_test_data.py --ground-truth data/ground_truth --out data/synthetic_ocr_output/model_a --error-rate 0.08
-python phase4/0_make_synthetic_test_data.py --ground-truth data/ground_truth --out data/synthetic_ocr_output/model_b --error-rate 0.15 --seed 99
-python phase4/1_compute_cer_wer.py --ground-truth data/ground_truth --ocr-output data/synthetic_ocr_output/model_a --model-name model_a
-python phase4/2_llm_fluency_score.py --ocr-output data/synthetic_ocr_output/model_a --model-name model_a
-python phase4/3_llm_error_detection.py --ocr-output data/synthetic_ocr_output/model_a --model-name model_a
-python phase4/4_cross_model_agreement.py --output-a data/synthetic_ocr_output/model_a --output-b data/synthetic_ocr_output/model_b
-python phase4/5_calibration_analysis.py --cer-wer-csv outputs/phase4/cer_wer_model_a.csv --fluency-csv outputs/phase4/fluency_model_a.csv
-python phase5/1_error_categorization.py --ground-truth data/ground_truth --ocr-output data/synthetic_ocr_output/model_a --model-name model_a
-python phase5/2_scalability_cost_estimate.py --total-pages 32949
-```
-
-**Once real Phase 3 OCR output exists**, swap `data/synthetic_ocr_output/model_a`
-for the real output folder in any command above — same filenames, same
-interface, zero code changes needed.
+See each phase's own README (`phase2/README.md` through `phase5/README.md`)
+for the full breakdown of every individual script within each phase, and
+for the (optional) synthetic-test-data path useful for development without
+spending API calls.
 
 ## Environment
 

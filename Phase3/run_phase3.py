@@ -68,12 +68,12 @@ def main():
     parser.add_argument("--preprocessed-dir", type=Path, default=None,
                         help="Defaults to outputs/phase2/preprocessed_images (ground truth) "
                              "or outputs/phase2/preprocessed_sample (corpus sample)")
-    parser.add_argument("--models", type=str, default="gemini,tesseract",
-                        help="Comma-separated OCR models to run (tesseract,gemini,qwen3vl,easyocr)")
+    parser.add_argument("--models", type=str, default="claude,tesseract",
+                        help="Comma-separated OCR models to run (tesseract,claude,gemini,qwen3vl,easyocr)")
     parser.add_argument("--vision-model", type=str, default="qwen3-vl:8b")
-    parser.add_argument("--api-key-env", type=str, default="GOOGLE_API_KEY_PHASE3",
-                        help="Env var name for the Gemini API key (default: GOOGLE_API_KEY_PHASE3, "
-                             "falls back to GOOGLE_API_KEY if not set)")
+    parser.add_argument("--api-key-env", type=str, default=None,
+                        help="Env var name for the API key, overriding the chosen backend's "
+                             "standard one (e.g. ANTHROPIC_API_KEY, GOOGLE_API_KEY)")
     parser.add_argument("--out-root", type=Path, default=Path("outputs/phase3"))
     parser.add_argument("--force", action="store_true",
                         help="Re-run every step even if its output already exists")
@@ -86,9 +86,20 @@ def main():
     raw_dir = args.ground_truth_dir
     if args.use_corpus_sample:
         manifest = args.sample_dir / "manifest.csv"
-        if manifest.exists() and not args.force:
-            print(f"\n[SKIP] Step 0 — {manifest} already exists. Use --force to resample.")
+        manifest_count = None
+        if manifest.exists():
+            import pandas as pd
+            manifest_count = len(pd.read_csv(manifest))
+        counts_match = manifest_count == args.sample_size
+
+        if counts_match and not args.force:
+            print(f"\n[SKIP] Step 0 — {manifest} already has {manifest_count} page(s) "
+                  f"matching the requested --sample-size. Use --force to resample.")
         else:
+            if manifest.exists() and manifest_count != args.sample_size:
+                print(f"[NOTICE] {manifest} has {manifest_count} page(s), but --sample-size is "
+                      f"{args.sample_size} — resampling (0_sample_corpus_for_ocr.py also clears "
+                      f"stale leftover files from any previous larger sample).")
             run_step(
                 "Step 0 — Sample pages from the full corpus",
                 [python, str(SCRIPT_DIR / "0_sample_corpus_for_ocr.py"),
@@ -109,10 +120,26 @@ def main():
         Path("outputs/phase2/preprocessed_sample") if args.use_corpus_sample
         else Path("outputs/phase2/preprocessed_images")
     )
-    already_preprocessed = preprocessed_dir.exists() and any(preprocessed_dir.glob("*.png"))
-    if already_preprocessed and not args.force:
-        print(f"\n[SKIP] Step 1 — {preprocessed_dir} already has preprocessed output. Use --force to redo.")
+    expected_count = len(list(raw_dir.glob("*.jpg")))
+    actual_count = len(list(preprocessed_dir.glob("*.png"))) if preprocessed_dir.exists() else 0
+    counts_match = preprocessed_dir.exists() and actual_count == expected_count and expected_count > 0
+
+    if counts_match and not args.force:
+        print(f"\n[SKIP] Step 1 — {preprocessed_dir} already has {actual_count} preprocessed "
+              f"page(s) matching the current {expected_count}-page sample. Use --force to redo.")
     else:
+        if preprocessed_dir.exists():
+            if actual_count != expected_count and actual_count > 0:
+                print(f"[NOTICE] {preprocessed_dir} has {actual_count} stale page(s), but the "
+                      f"current sample is {expected_count} page(s) — clearing and regenerating "
+                      f"to avoid silently processing/paying for the wrong page count.")
+            # CRITICAL: clear stale leftovers before regenerating. Without this,
+            # re-running with a SMALLER --sample-size than a previous run left
+            # the old, larger set of preprocessed images in place — 1_run_ocr.py
+            # globs *.png blindly, so it would OCR every leftover file too,
+            # silently processing (and paying for) far more pages than requested.
+            import shutil
+            shutil.rmtree(preprocessed_dir)
         run_step(
             "Step 1 — Preprocess images (phase2)",
             [python, str(PHASE2_DIR / "1_preprocess_images.py"),
@@ -120,7 +147,7 @@ def main():
         )
 
     # ── Step 2: Run OCR for each requested model ────────────────────────────────
-    model_to_backend = {"qwen3vl": "ollama", "gemini": "gemini"}
+    model_to_backend = {"qwen3vl": "ollama", "gemini": "gemini", "claude": "anthropic"}
     for model in models:
         backend = model_to_backend.get(model)
         if backend:
@@ -142,7 +169,7 @@ def main():
                "--input-dir", str(preprocessed_dir), "--model", model, "--out-root", str(args.out_root)]
         if model == "qwen3vl":
             cmd += ["--vision-model", args.vision_model]
-        if model == "gemini":
+        if model in ("gemini", "claude") and args.api_key_env:
             cmd += ["--api-key-env", args.api_key_env]
         run_step(f"Step 2 — Run OCR ({model})", cmd)
 

@@ -42,8 +42,17 @@ def main():
     prep_df = pd.read_csv(args.preprocessed_summary)
 
     # Use the "all_pages" scope row for each model (matches phase3's dual-summary format)
-    raw_df = raw_df[raw_df["scope"] == "all_pages"]
-    prep_df = prep_df[prep_df["scope"] == "all_pages"]
+    # Use the excluding_short_reference scope, not all_pages — matching the
+    # methodology established in phase3/2_compare_ocr_models.py. The 2-3
+    # statistically unstable short-reference pages flagged elsewhere in this
+    # project would otherwise dominate this comparison the same way they did
+    # before that fix was made (see presentation_notes.md).
+    def get_clean_scope(df):
+        clean_rows = df[df["scope"].str.startswith("excluding_short_reference")]
+        return clean_rows if not clean_rows.empty else df[df["scope"] == "all_pages"]
+
+    raw_df = get_clean_scope(raw_df)
+    prep_df = get_clean_scope(prep_df)
 
     merged = raw_df.merge(prep_df, on="model", suffixes=("_raw", "_preprocessed"))
 

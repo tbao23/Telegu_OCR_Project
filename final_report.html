@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.36">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Tyler Bao">
+<meta name="author" content="Christian Green">
+<meta name="dcterms.date" content="2026-06-22">
+
+<title>Telugu OCR via Large Language Models</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="final_report_files/libs/clipboard/clipboard.min.js"></script>
+<script src="final_report_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="final_report_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="final_report_files/libs/quarto-html/popper.min.js"></script>
+<script src="final_report_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="final_report_files/libs/quarto-html/anchor.min.js"></script>
+<link href="final_report_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="final_report_files/libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="final_report_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="final_report_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="final_report_files/libs/bootstrap/bootstrap-67270d1595a62d14f123c043d4fb2f18.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#executive-summary" id="toc-executive-summary" class="nav-link active" data-scroll-target="#executive-summary"><span class="header-section-number">1</span> Executive Summary</a></li>
+  <li><a href="#introduction-and-problem-statement" id="toc-introduction-and-problem-statement" class="nav-link" data-scroll-target="#introduction-and-problem-statement"><span class="header-section-number">2</span> Introduction and Problem Statement</a>
+  <ul class="collapse">
+  <li><a href="#tools-and-libraries" id="toc-tools-and-libraries" class="nav-link" data-scroll-target="#tools-and-libraries"><span class="header-section-number">2.1</span> Tools and Libraries</a></li>
+  </ul></li>
+  <li><a href="#phase-1-corpus-characterization-and-problem-scoping" id="toc-phase-1-corpus-characterization-and-problem-scoping" class="nav-link" data-scroll-target="#phase-1-corpus-characterization-and-problem-scoping"><span class="header-section-number">3</span> Phase 1: Corpus Characterization and Problem Scoping</a>
+  <ul class="collapse">
+  <li><a href="#corpus-selection" id="toc-corpus-selection" class="nav-link" data-scroll-target="#corpus-selection"><span class="header-section-number">3.1</span> Corpus Selection</a></li>
+  <li><a href="#corpus-statistics" id="toc-corpus-statistics" class="nav-link" data-scroll-target="#corpus-statistics"><span class="header-section-number">3.2</span> Corpus Statistics</a></li>
+  <li><a href="#ground-truth-sample-and-manual-annotation" id="toc-ground-truth-sample-and-manual-annotation" class="nav-link" data-scroll-target="#ground-truth-sample-and-manual-annotation"><span class="header-section-number">3.3</span> Ground Truth Sample and Manual Annotation</a></li>
+  <li><a href="#scan-artifact-taxonomy-observed" id="toc-scan-artifact-taxonomy-observed" class="nav-link" data-scroll-target="#scan-artifact-taxonomy-observed"><span class="header-section-number">3.4</span> Scan Artifact Taxonomy (Observed)</a></li>
+  </ul></li>
+  <li><a href="#phase-2-image-preprocessing-pipeline" id="toc-phase-2-image-preprocessing-pipeline" class="nav-link" data-scroll-target="#phase-2-image-preprocessing-pipeline"><span class="header-section-number">4</span> Phase 2: Image Preprocessing Pipeline</a>
+  <ul class="collapse">
+  <li><a href="#methodology" id="toc-methodology" class="nav-link" data-scroll-target="#methodology"><span class="header-section-number">4.1</span> Methodology</a></li>
+  <li><a href="#finding-1-unicode-filename-handling-windowsopencv" id="toc-finding-1-unicode-filename-handling-windowsopencv" class="nav-link" data-scroll-target="#finding-1-unicode-filename-handling-windowsopencv"><span class="header-section-number">4.2</span> Finding 1: Unicode Filename Handling (Windows/OpenCV)</a></li>
+  <li><a href="#finding-2-histogram-equalization-was-actively-harmful" id="toc-finding-2-histogram-equalization-was-actively-harmful" class="nav-link" data-scroll-target="#finding-2-histogram-equalization-was-actively-harmful"><span class="header-section-number">4.3</span> Finding 2: Histogram Equalization Was Actively Harmful</a></li>
+  <li><a href="#preprocessing-outcomes-full-run" id="toc-preprocessing-outcomes-full-run" class="nav-link" data-scroll-target="#preprocessing-outcomes-full-run"><span class="header-section-number">4.4</span> Preprocessing Outcomes (Full Run)</a></li>
+  </ul></li>
+  <li><a href="#phase-3-ocr-pipeline-and-model-comparison" id="toc-phase-3-ocr-pipeline-and-model-comparison" class="nav-link" data-scroll-target="#phase-3-ocr-pipeline-and-model-comparison"><span class="header-section-number">5</span> Phase 3: OCR Pipeline and Model Comparison</a>
+  <ul class="collapse">
+  <li><a href="#methodology-1" id="toc-methodology-1" class="nav-link" data-scroll-target="#methodology-1"><span class="header-section-number">5.1</span> Methodology</a>
+  <ul class="collapse">
+  <li><a href="#model-selection-an-iterative-decision-not-a-one-time-choice" id="toc-model-selection-an-iterative-decision-not-a-one-time-choice" class="nav-link" data-scroll-target="#model-selection-an-iterative-decision-not-a-one-time-choice"><span class="header-section-number">5.1.1</span> Model Selection: An Iterative Decision, Not a One-Time Choice</a></li>
+  <li><a href="#cost-aware-model-selection-within-anthropic" id="toc-cost-aware-model-selection-within-anthropic" class="nav-link" data-scroll-target="#cost-aware-model-selection-within-anthropic"><span class="header-section-number">5.1.2</span> Cost-Aware Model Selection Within Anthropic</a></li>
+  </ul></li>
+  <li><a href="#results" id="toc-results" class="nav-link" data-scroll-target="#results"><span class="header-section-number">5.2</span> Results</a>
+  <ul class="collapse">
+  <li><a href="#note-on-short-reference-pages" id="toc-note-on-short-reference-pages" class="nav-link" data-scroll-target="#note-on-short-reference-pages"><span class="header-section-number">5.2.1</span> Note on Short-Reference Pages</a></li>
+  </ul></li>
+  </ul></li>
+  <li><a href="#phase-4-llm-assisted-validation-framework" id="toc-phase-4-llm-assisted-validation-framework" class="nav-link" data-scroll-target="#phase-4-llm-assisted-validation-framework"><span class="header-section-number">6</span> Phase 4: LLM-Assisted Validation Framework</a>
+  <ul class="collapse">
+  <li><a href="#methodology-2" id="toc-methodology-2" class="nav-link" data-scroll-target="#methodology-2"><span class="header-section-number">6.1</span> Methodology</a>
+  <ul class="collapse">
+  <li><a href="#a-note-on-local-vs.-api-based-judge-models" id="toc-a-note-on-local-vs.-api-based-judge-models" class="nav-link" data-scroll-target="#a-note-on-local-vs.-api-based-judge-models"><span class="header-section-number">6.1.1</span> A Note on Local vs.&nbsp;API-Based Judge Models</a></li>
+  </ul></li>
+  <li><a href="#results-1" id="toc-results-1" class="nav-link" data-scroll-target="#results-1"><span class="header-section-number">6.2</span> Results</a></li>
+  </ul></li>
+  <li><a href="#phase-5-analysis-insights-and-scalability" id="toc-phase-5-analysis-insights-and-scalability" class="nav-link" data-scroll-target="#phase-5-analysis-insights-and-scalability"><span class="header-section-number">7</span> Phase 5: Analysis, Insights, and Scalability</a>
+  <ul class="collapse">
+  <li><a href="#error-categorization" id="toc-error-categorization" class="nav-link" data-scroll-target="#error-categorization"><span class="header-section-number">7.1</span> Error Categorization</a></li>
+  <li><a href="#scalability-and-cost-estimate" id="toc-scalability-and-cost-estimate" class="nav-link" data-scroll-target="#scalability-and-cost-estimate"><span class="header-section-number">7.2</span> Scalability and Cost Estimate</a></li>
+  <li><a href="#failure-mode-discussion" id="toc-failure-mode-discussion" class="nav-link" data-scroll-target="#failure-mode-discussion"><span class="header-section-number">7.3</span> Failure Mode Discussion</a></li>
+  </ul></li>
+  <li><a href="#limitations" id="toc-limitations" class="nav-link" data-scroll-target="#limitations"><span class="header-section-number">8</span> Limitations</a></li>
+  <li><a href="#conclusions" id="toc-conclusions" class="nav-link" data-scroll-target="#conclusions"><span class="header-section-number">9</span> Conclusions</a></li>
+  <li><a href="#ai-tool-usage-disclosure" id="toc-ai-tool-usage-disclosure" class="nav-link" data-scroll-target="#ai-tool-usage-disclosure"><span class="header-section-number">10</span> AI Tool Usage Disclosure</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references"><span class="header-section-number">11</span> References</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="final_report.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Telugu OCR via Large Language Models</h1>
+<p class="subtitle lead">Final Project Report — CSCI/DASC 6020, Machine Learning</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Authors</div>
+    <div class="quarto-title-meta-contents">
+             <p>Tyler Bao </p>
+             <p>Christian Green </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">June 22, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="executive-summary" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Executive Summary</h1>
+<p>This report documents the design, implementation, and evaluation of an end-to-end pipeline for converting scanned Telugu document images into clean Unicode text using a combination of classical OCR engines and modern vision-capable Large Language Models (LLMs), with LLM-assisted quality validation in place of (and alongside) traditional ground-truth comparison. The project spans five phases: corpus characterization, image preprocessing, OCR execution and model comparison, LLM-based validation, and final analysis.</p>
+<p>Two findings stand out as the project’s most significant contributions beyond simply reporting accuracy numbers. First, a systematic <strong>Unicode filename bug</strong> in image preprocessing silently dropped roughly one in five pages from the working set — specifically and disproportionately the pages whose source book titles were written in Telugu script, an ironic and instructive failure mode for a Telugu OCR project. Second, and more substantially, a single preprocessing step intended to <em>improve</em> OCR accuracy — global histogram equalization — was found to actively <strong>destroy</strong> legibility on the corpus’s already-high-contrast scans, dropping a representative test page’s OCR output from a full transcription attempt to a complete failure (CER 1.00) before the cause was isolated and fixed (CER 0.276 after). This directly challenges the common assumption that more preprocessing is strictly beneficial, and is discussed in detail in <a href="#phase-2-image-preprocessing-pipeline">Phase 2</a>.</p>
+</section>
+<section id="introduction-and-problem-statement" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> Introduction and Problem Statement</h1>
+<p>Telugu is a Dravidian language spoken by approximately 90 million people, written in a Brahmic script characterized by extensive consonant-conjunct ligatures and a rich system of vowel diacritics (mātrās) that attach to base consonants in spatially complex ways. Despite its speaker population, Telugu remains comparatively under-served by OCR tooling relative to high-resource languages and even relative to some other Indic scripts — a gap this project investigates directly by comparing a long-standing free baseline (Tesseract) against a modern vision-capable LLM (Anthropic’s Claude).</p>
+<p>The project’s broader goal, as emphasized in the course’s project guidance, was not merely to produce text from scanned images but to practice the actual workflow of applied machine learning: formulating a real problem, acquiring and cleaning data, designing a multi-stage pipeline, selecting and comparing methods empirically, and iterating based on evidence rather than assumption. Several of the most substantive findings in this report — the two preprocessing bugs in particular — emerged directly from that iterative, evidence-driven process rather than from the initial pipeline design.</p>
+<section id="tools-and-libraries" class="level2" data-number="2.1">
+<h2 data-number="2.1" class="anchored" data-anchor-id="tools-and-libraries"><span class="header-section-number">2.1</span> Tools and Libraries</h2>
+<p>Per course guidance to rely on tested libraries rather than reimplementing core algorithms, this project uses: <code>jiwer</code> for all CER/WER computation, <code>opencv-python</code> for image preprocessing, <code>pytesseract</code> for the classical OCR baseline, the official <code>anthropic</code> SDK for Claude API access, <code>pandas</code>/<code>numpy</code> for data handling, and <code>scipy</code> for statistical correlation in the calibration analysis. One early version of the Phase 3 comparison script contained a hand-rolled Levenshtein/CER/WER implementation; this was identified and replaced with <code>jiwer</code> during development (see <a href="#ai-tool-usage-disclosure">AI Tool Usage Disclosure</a>).</p>
+<hr>
+</section>
+</section>
+<section id="phase-1-corpus-characterization-and-problem-scoping" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> Phase 1: Corpus Characterization and Problem Scoping</h1>
+<section id="corpus-selection" class="level2" data-number="3.1">
+<h2 data-number="3.1" class="anchored" data-anchor-id="corpus-selection"><span class="header-section-number">3.1</span> Corpus Selection</h2>
+<p>Per the course’s published guidance on acceptable Telugu OCR data sources, this project uses a Telugu Wikisource–derived corpus <span class="citation" data-cites="wikisource_telugu">(<a href="#ref-wikisource_telugu" role="doc-biblioref">Telugu Wikisource contributors 2024</a>)</span> assembled by a team member and released on HuggingFace <span class="citation" data-cites="chestnut2026telugu">(<a href="#ref-chestnut2026telugu" role="doc-biblioref">Chestnut 2026</a>)</span>. Every page in the corpus already carries a community transcription via Wikisource’s ProofreadPage extension <span class="citation" data-cites="proofreadpage">(<a href="#ref-proofreadpage" role="doc-biblioref">MediaWiki contributors 2024</a>)</span>, with quality levels 0 (no text) through 4 (independently validated) — providing usable reference text at scale without requiring this project to hand-annotate the full corpus.</p>
+</section>
+<section id="corpus-statistics" class="level2" data-number="3.2">
+<h2 data-number="3.2" class="anchored" data-anchor-id="corpus-statistics"><span class="header-section-number">3.2</span> Corpus Statistics</h2>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> corpus_stats.get(<span class="st">"_pending"</span>):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    pending_note(corpus_stats[<span class="st">"_label"</span>])</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    summary <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Metric"</span>: [<span class="st">"Total books"</span>, <span class="st">"Total page pairs"</span>, <span class="st">"Pages per book (mean)"</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>                   <span class="st">"Pages per book (median)"</span>],</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Value"</span>: [</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>            corpus_stats.get(<span class="st">"approved_books"</span>, <span class="st">"N/A"</span>),</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"</span><span class="sc">{</span>corpus_stats<span class="sc">.</span>get(<span class="st">'total_pages_approved'</span>, <span class="dv">0</span>)<span class="sc">:,}</span><span class="ss">"</span>,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>            corpus_stats.get(<span class="st">"pages_per_book"</span>, {}).get(<span class="st">"mean"</span>, <span class="st">"N/A"</span>),</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>            corpus_stats.get(<span class="st">"pages_per_book"</span>, {}).get(<span class="st">"median"</span>, <span class="st">"N/A"</span>),</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(summary.to_string(index<span class="op">=</span><span class="va">False</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="tbl-corpus-overview" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-corpus-overview-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1: Corpus overview
+</figcaption>
+<div aria-describedby="tbl-corpus-overview-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-stdout">
+<pre><code>                 Metric  Value
+            Total books    217
+       Total page pairs 32,949
+  Pages per book (mean)  151.8
+Pages per book (median)  116.0</code></pre>
+</div>
+</div>
+</figure>
+</div>
+<div id="cell-fig-quality-dist" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>img_path <span class="op">=</span> Path(<span class="st">"outputs/phase1/quality_dist.png"</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> img_path.exists():</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> IPython.display <span class="im">import</span> Image</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    display(Image(filename<span class="op">=</span><span class="bu">str</span>(img_path)))</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    pending_note(<span class="st">"quality distribution chart"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="fig-quality-dist" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-quality-dist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="final_report_files/figure-html/fig-quality-dist-output-1.png" class="img-fluid figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-quality-dist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Quality label distribution across the corpus
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="ground-truth-sample-and-manual-annotation" class="level2" data-number="3.3">
+<h2 data-number="3.3" class="anchored" data-anchor-id="ground-truth-sample-and-manual-annotation"><span class="header-section-number">3.3</span> Ground Truth Sample and Manual Annotation</h2>
+<p>A stratified sample of 40 pages was drawn across quality levels for manual verification. Of these, 39 of 40 (97.5%) had their existing Wikisource transcription confirmed accurate against the scanned image with no correction needed — a meaningful validation that quality levels 3–4 (human-proofread / validated) are reliable as ground truth without re-transcription. The one exception was a page labeled “problematic” (quality level 2) that, on inspection, had <strong>no transcription text at all</strong>, despite carrying page-level metadata — a finding that supports excluding quality level 2 from benchmark use entirely rather than treating it as merely noisy.</p>
+<p>This finding directly informed the corpus-wide sampling strategy used in Phase 3: subsequent samples favor quality levels 3–4 for this reason.</p>
+</section>
+<section id="scan-artifact-taxonomy-observed" class="level2" data-number="3.4">
+<h2 data-number="3.4" class="anchored" data-anchor-id="scan-artifact-taxonomy-observed"><span class="header-section-number">3.4</span> Scan Artifact Taxonomy (Observed)</h2>
+<p>Manual inspection of the 40 ground-truth pages produced the following observed artifact frequencies — empirical counts from a real sample, not estimates:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Artifact</th>
+<th>Observed (/40)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>No visible defects (“Clean”)</td>
+<td>19</td>
+</tr>
+<tr class="even">
+<td>Ink fading</td>
+<td>18</td>
+</tr>
+<tr class="odd">
+<td>Smudging</td>
+<td>9</td>
+</tr>
+<tr class="even">
+<td>Blur</td>
+<td>7</td>
+</tr>
+<tr class="odd">
+<td>Cramped text / tight spacing</td>
+<td>4</td>
+</tr>
+<tr class="even">
+<td>Worn / damaged page</td>
+<td>3</td>
+</tr>
+<tr class="odd">
+<td>Non-text content (illustration/diagram)</td>
+<td>5</td>
+</tr>
+<tr class="even">
+<td>No transcription available</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<p>This taxonomy directly motivated the preprocessing pipeline design in Phase 2, and the disproportionate prevalence of ink fading (18/40, 45%) over more dramatic damage (torn pages, heavy foxing) is part of why an aggressive contrast-correction step seemed reasonable at design time — and part of why its failure mode (see below) was not obvious until measured directly.</p>
+<hr>
+</section>
+</section>
+<section id="phase-2-image-preprocessing-pipeline" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> Phase 2: Image Preprocessing Pipeline</h1>
+<section id="methodology" class="level2" data-number="4.1">
+<h2 data-number="4.1" class="anchored" data-anchor-id="methodology"><span class="header-section-number">4.1</span> Methodology</h2>
+<p>The preprocessing pipeline converts raw scans into a binarized form suitable for OCR input, via: grayscale conversion, mild denoising (<code>cv2.fastNlMeansDenoising</code>), and binarization. The pipeline went through two significant, measured revisions during development, detailed below.</p>
+</section>
+<section id="finding-1-unicode-filename-handling-windowsopencv" class="level2" data-number="4.2">
+<h2 data-number="4.2" class="anchored" data-anchor-id="finding-1-unicode-filename-handling-windowsopencv"><span class="header-section-number">4.2</span> Finding 1: Unicode Filename Handling (Windows/OpenCV)</h2>
+<p><strong>Observation.</strong> Initial preprocessing runs reported a 22.5% failure rate (9 of 40 pages) with status <code>"Could not read image"</code>. Cross- referencing failed filenames against successful ones revealed a perfect split: <em>every</em> failed page had a Telugu-script filename (e.g.&nbsp;<code>పటం_కతలు__page_0102.jpg</code>), and <em>every</em> successful page had a Latin-script filename.</p>
+<p><strong>Root cause.</strong> <code>cv2.imread()</code> and <code>cv2.imwrite()</code> on Windows use an underlying file API that does not handle non-ASCII paths correctly — a known OpenCV limitation. The function does not raise an error; it silently returns <code>None</code>, masking the failure unless filenames are specifically cross-checked against outcomes.</p>
+<p><strong>Fix.</strong> Image I/O was rewritten to read raw bytes via <code>numpy.fromfile</code> and decode/encode via <code>cv2.imdecode</code>/<code>cv2.imencode</code>, bypassing the problematic path-handling code entirely. After the fix, 40 of 40 pages (100%) processed successfully — verified directly, not assumed.</p>
+<p><strong>Significance.</strong> Beyond the immediate fix, this is a concrete illustration of a broader risk in low-resource-language tooling: standard libraries often carry unstated assumptions (here, ASCII file paths) that only surface when tested against real non-Latin-script data. A test suite using only Latin-named sample files would never have caught this.</p>
+</section>
+<section id="finding-2-histogram-equalization-was-actively-harmful" class="level2" data-number="4.3">
+<h2 data-number="4.3" class="anchored" data-anchor-id="finding-2-histogram-equalization-was-actively-harmful"><span class="header-section-number">4.3</span> Finding 2: Histogram Equalization Was Actively Harmful</h2>
+<p><strong>Observation.</strong> Even after fixing the Unicode bug, baseline Tesseract accuracy across the 40-page ground truth was poor enough to warrant investigation beyond “Tesseract is a weak baseline” — median CER near 0.94, with some pages producing <strong>zero output</strong> despite visibly clean, legible source scans.</p>
+<p><strong>Method.</strong> Each preprocessing stage was isolated and visually inspected in sequence on a representative test page (mean source brightness 238.6/255, std. dev. 57.4 — i.e., an already high-contrast, well-printed scan):</p>
+<ol type="1">
+<li>Grayscale — fully legible</li>
+<li>Mild denoising — fully legible, negligible visible change</li>
+<li><strong><code>cv2.equalizeHist()</code> (global histogram equalization) — text characters visibly merged into thick, illegible blobs</strong></li>
+<li>Adaptive thresholding on top of the already-damaged step 3 output — further fragmented into speckled noise</li>
+</ol>
+<p><strong>Root cause.</strong> Global histogram equalization stretches contrast based on the image’s existing histogram. On a scan that is <em>already</em> high-contrast, this stretch over-amplifies mid-tones until adjacent character strokes bleed together — the opposite of histogram equalization’s intended effect on genuinely washed-out scans. The corpus’s source scans (clean, modern book reproductions, not degraded photocopies) made this failure mode the norm rather than the exception.</p>
+<p><strong>Fix.</strong> <code>equalizeHist()</code> was removed entirely; binarization now uses Otsu’s method, which derives its threshold from each page’s own histogram rather than applying a blind global stretch.</p>
+<p><strong>Measured impact</strong> (single representative test page, <code>jiwer</code>-computed):</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th></th>
+<th>Before fix</th>
+<th>After fix</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Tesseract output</td>
+<td>Empty (0 characters)</td>
+<td>1,037 characters</td>
+</tr>
+<tr class="even">
+<td>CER</td>
+<td>1.00 (total failure)</td>
+<td>0.276</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Significance.</strong> This finding runs counter to a default assumption — stated explicitly in the course’s project materials — that preprocessing reliably improves OCR accuracy relative to raw scans. For this corpus, one specific preprocessing step did the opposite, and the failure was severe enough to produce complete transcription failure, not merely degraded accuracy. The broader lesson generalizes: preprocessing pipelines built on generic best-practice steps should be validated stage-by-stage against the actual characteristics of the target corpus, not assumed correct because each individual technique is individually well-established in the literature.</p>
+</section>
+<section id="preprocessing-outcomes-full-run" class="level2" data-number="4.4">
+<h2 data-number="4.4" class="anchored" data-anchor-id="preprocessing-outcomes-full-run"><span class="header-section-number">4.4</span> Preprocessing Outcomes (Full Run)</h2>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>report_path <span class="op">=</span> Path(<span class="st">"outputs/phase2/preprocessing_report.csv"</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> report_path.exists():</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> pd.read_csv(report_path)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(df[<span class="st">"status"</span>].value_counts().to_string())</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    pending_note(<span class="st">"Phase 2 preprocessing report"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="tbl-preprocessing-report" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="4">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-preprocessing-report-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;2: Preprocessing outcomes across the full ground truth / corpus sample
+</figcaption>
+<div aria-describedby="tbl-preprocessing-report-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-stdout">
+<pre><code>status
+processed    500</code></pre>
+</div>
+</div>
+</figure>
+</div>
+<hr>
+</section>
+</section>
+<section id="phase-3-ocr-pipeline-and-model-comparison" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> Phase 3: OCR Pipeline and Model Comparison</h1>
+<section id="methodology-1" class="level2" data-number="5.1">
+<h2 data-number="5.1" class="anchored" data-anchor-id="methodology-1"><span class="header-section-number">5.1</span> Methodology</h2>
+<p>Two OCR engines were compared: <strong>Tesseract</strong> (with the Telugu language pack) as a free, classical baseline, and <strong>Claude</strong> (Anthropic’s vision-capable LLM) as the project’s primary LLM-based OCR method.</p>
+<section id="model-selection-an-iterative-decision-not-a-one-time-choice" class="level3" data-number="5.1.1">
+<h3 data-number="5.1.1" class="anchored" data-anchor-id="model-selection-an-iterative-decision-not-a-one-time-choice"><span class="header-section-number">5.1.1</span> Model Selection: An Iterative Decision, Not a One-Time Choice</h3>
+<p>The choice of LLM-based OCR model changed twice over the course of this project, and the reasons for each change are documented here deliberately — they are themselves a concrete example of the “experiment, measure, iterate” workflow the course materials emphasize as the actual point of an applied ML project.</p>
+<ol type="1">
+<li><strong>Initial choice: Qwen3-VL via local Ollama.</strong> Selected first for zero marginal cost. Measured local CPU-bound inference throughput made this impractical at the target sample sizes (500 pages for the corpus-wide deliverable, 100+ for LLM validation) within the project’s time constraints.</li>
+<li><strong>Second choice: Gemini (Google AI Studio), free tier.</strong> Selected for its no-cost API access and (per the assignment’s own materials) reported strength on Indic scripts. In practice, this surfaced two compounding real-world issues not evident from documentation alone:
+<ul>
+<li><strong>Content-safety blocking.</strong> Gemini’s API occasionally refused to return OCR output for pages from older, copyrighted Telugu literature, returning a <code>RECITATION</code>/<code>SAFETY</code> finish reason instead of the requested transcription — an LLM-specific failure mode with no equivalent in classical OCR, and one that a non-LLM-based pipeline would never need to handle.</li>
+<li><strong>Free-tier authentication instability.</strong> During the project’s final week, Google rolled out a new API key format (prefixed <code>AQ.</code> instead of the legacy <code>AIza...</code>) that was, at the time, incompatible with the standard SDK authentication flow for several days — a platform-side bug independently reported by other developers, not something fixable in this codebase. A REST-based workaround was implemented (bypassing the SDK’s header-based auth in favor of the legacy query-parameter style) before the decision below was made.</li>
+</ul></li>
+<li><strong>Final choice: Claude (Anthropic), paid API.</strong> Given the combined reliability issues above and persistent free-tier rate-limit friction even after the authentication workaround, the project moved to Anthropic’s API directly. This is the configuration used for all results reported below. The switch itself is a substantive finding: <strong>for a real, time-constrained project, a vendor’s documented capability is necessary but not sufficient — operational reliability (auth stability, content-policy behavior, rate-limit headroom) determined the final model choice as much as raw OCR accuracy did.</strong></li>
+</ol>
+</section>
+<section id="cost-aware-model-selection-within-anthropic" class="level3" data-number="5.1.2">
+<h3 data-number="5.1.2" class="anchored" data-anchor-id="cost-aware-model-selection-within-anthropic"><span class="header-section-number">5.1.2</span> Cost-Aware Model Selection Within Anthropic</h3>
+<p>Two different Claude models are used for two different tasks in this project, deliberately sized to each task’s actual demands rather than defaulting to the most capable (and most expensive) model everywhere:</p>
+<ul>
+<li><strong>Claude Sonnet</strong> for OCR extraction (Phase 3) — the higher-stakes task, where careful character-level accuracy on dense Telugu text justifies the larger model.</li>
+<li><strong>Claude Haiku</strong> for LLM validation (Phase 4, Methods A/B) — a comparatively lighter judging/scoring task run at higher volume (every validated page, twice), where a smaller, faster, cheaper model is the appropriate tool rather than over-provisioning.</li>
+</ul>
+<p>Error handling for the Anthropic backend includes automatic retry with exponential backoff on rate-limit and server-error responses, and instant rotation across multiple API keys if more than one is configured — unlike Gemini’s per-project-per-day quota (where only a <em>different</em> project’s quota helps), Anthropic’s rate limits are per-minute, so backoff-then-retry is itself an effective recovery strategy, not just a stopgap.</p>
+<p>A second, independent 500-page sample was drawn from the full corpus (distinct from the Phase 1 ground-truth sample) using the same quality-stratified approach, favoring quality levels 3–4 per the Phase 1 finding on transcription reliability. This corpus sample’s existing Wikisource transcriptions serve as reference text for the comparison below.</p>
+</section>
+</section>
+<section id="results" class="level2" data-number="5.2">
+<h2 data-number="5.2" class="anchored" data-anchor-id="results"><span class="header-section-number">5.2</span> Results</h2>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ocr_summary <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(ocr_summary.to_string(index<span class="op">=</span><span class="va">False</span>))</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    pending_note(<span class="st">"Phase 3 OCR comparison summary"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="tbl-ocr-summary" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="5">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-ocr-summary-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;3: OCR model comparison summary
+</figcaption>
+<div aria-describedby="tbl-ocr-summary-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-stdout">
+<pre><code>    model                                              scope  pages_evaluated  average_cer  median_cer  average_wer  median_wer
+   claude                                          all_pages              500     0.187446    0.137147     0.574046    0.561511
+tesseract                                          all_pages              500     0.235785    0.194822     0.739941    0.774047
+   claude excluding_short_reference (&lt;50 chars, n=2 flagged)              499     0.184511    0.137120     0.570687    0.561224
+tesseract excluding_short_reference (&lt;50 chars, n=2 flagged)              499     0.231378    0.194754     0.735913    0.773585</code></pre>
+</div>
+</div>
+</figure>
+</div>
+<div id="cell-fig-cer-distribution" class="cell" data-execution_count="6">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ocr_results <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> model <span class="kw">in</span> ocr_results[<span class="st">"model"</span>].unique():</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        subset <span class="op">=</span> ocr_results[ocr_results[<span class="st">"model"</span>] <span class="op">==</span> model]</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        ax.hist(subset[<span class="st">"cer"</span>], bins<span class="op">=</span><span class="dv">20</span>, alpha<span class="op">=</span><span class="fl">0.6</span>, label<span class="op">=</span>model)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="st">"Character Error Rate (CER)"</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    ax.set_ylabel(<span class="st">"Number of pages"</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    ax.legend()</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    ax.set_title(<span class="st">"CER Distribution by OCR Model"</span>)</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    plt.tight_layout()</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    plt.show()</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    pending_note(<span class="st">"Phase 3 CER distribution chart"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="fig-cer-distribution" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-cer-distribution-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="final_report_files/figure-html/fig-cer-distribution-output-1.png" width="896" height="570" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-cer-distribution-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: CER distribution by model
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<section id="note-on-short-reference-pages" class="level3" data-number="5.2.1">
+<h3 data-number="5.2.1" class="anchored" data-anchor-id="note-on-short-reference-pages"><span class="header-section-number">5.2.1</span> Note on Short-Reference Pages</h3>
+<p>A statistical artifact was identified and corrected during CER analysis: pages with very short reference text (e.g.&nbsp;near-blank pages) produce mathematically unstable CER, since <span class="math inline">\(CER = \text{edit\_distance} / \text{reference\_length}\)</span> — a tiny denominator can produce an extreme ratio from even modest OCR output. One page with a 23-character reference produced a CER of 42.8 purely from this effect, single-handedly dominating an unfiltered mean-CER statistic. All summary statistics in this report exclude pages with reference text under 50 characters by default, with both the filtered and unfiltered numbers reported transparently in the underlying data files.</p>
+<hr>
+</section>
+</section>
+</section>
+<section id="phase-4-llm-assisted-validation-framework" class="level1" data-number="6">
+<h1 data-number="6"><span class="header-section-number">6</span> Phase 4: LLM-Assisted Validation Framework</h1>
+<section id="methodology-2" class="level2" data-number="6.1">
+<h2 data-number="6.1" class="anchored" data-anchor-id="methodology-2"><span class="header-section-number">6.1</span> Methodology</h2>
+<p>Three complementary validation approaches were implemented, per the assignment’s specification:</p>
+<ul>
+<li><strong>Method A (Fluency scoring)</strong> — an LLM rates OCR output 1–5 for linguistic plausibility, without reference to ground truth.</li>
+<li><strong>Method B (Error detection)</strong> — an LLM identifies specific morphologically implausible words/sequences and suggests corrections.</li>
+<li><strong>Method C (Cross-model agreement)</strong> — Tesseract and Claude outputs on the same pages are compared directly (via <code>difflib</code>); low agreement flags a page for review without needing ground truth at all.</li>
+</ul>
+<p>Classical CER/WER (via <code>jiwer</code>) against the Phase 1 ground truth and the Phase 3 corpus sample provides the basis against which Methods A and B are calibrated.</p>
+<section id="a-note-on-local-vs.-api-based-judge-models" class="level3" data-number="6.1.1">
+<h3 data-number="6.1.1" class="anchored" data-anchor-id="a-note-on-local-vs.-api-based-judge-models"><span class="header-section-number">6.1.1</span> A Note on Local vs.&nbsp;API-Based Judge Models</h3>
+<p>Method A and B were initially implemented against a local Ollama model (Qwen3) for zero marginal cost. Two real issues were found and fixed during development:</p>
+<ol type="1">
+<li><strong>Empty responses on longer prompts.</strong> Qwen3 defaults to an internal “thinking” mode whose reasoning trace shares the same output-token budget as the final answer; on the more demanding error-detection task, the model exhausted its budget on reasoning and returned an empty final answer on 39 of 40 pages. Passing <code>"think": false</code> resolved this — flagged error counts went from a mean of 0.03/page (clearly broken) to 7.33/page (plausible) after the fix.</li>
+<li><strong>Throughput.</strong> Even after the above fix, local CPU-bound inference was measured to be a practical bottleneck at the 100+ page scale required for Phase 4. The validation backend was made fully configurable (Ollama, Gemini, Anthropic, or OpenAI, selected via a single flag) — Gemini was tried first for throughput, but reliability issues (see Phase 3’s Model Selection discussion above) led to Anthropic being adopted as the default for Methods A/B, using the smaller/cheaper Claude Haiku model specifically for this lighter judging task. Ollama remains fully supported and zero-cost for anyone reproducing this work without API access.</li>
+</ol>
+</section>
+</section>
+<section id="results-1" class="level2" data-number="6.2">
+<h2 data-number="6.2" class="anchored" data-anchor-id="results-1"><span class="header-section-number">6.2</span> Results</h2>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> calibration.get(<span class="st">"_pending"</span>):</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    pending_note(calibration[<span class="st">"_label"</span>])</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(json.dumps(calibration, indent<span class="op">=</span><span class="dv">2</span>, ensure_ascii<span class="op">=</span><span class="va">False</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="tbl-calibration" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="7">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-calibration-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;4: Calibration: does the LLM fluency score track real CER?
+</figcaption>
+<div aria-describedby="tbl-calibration-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-stdout">
+<pre><code>{
+  "n_pages": 100,
+  "n_pages_excluded_short_reference": 0,
+  "pearson_r": -0.3286,
+  "pearson_p_value": 0.0008,
+  "spearman_r": -0.599,
+  "spearman_p_value": 0.0,
+  "interpretation": "Strong negative correlation expected (fluency score should drop as CER rises). Observed Pearson r = -0.329. This is weaker than expected — the LLM score may not reliably track true OCR accuracy on this sample; consider a larger sample or prompt revision."
+}</code></pre>
+</div>
+</div>
+</figure>
+</div>
+<div id="cell-fig-calibration-scatter" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>img_path <span class="op">=</span> Path(<span class="st">"outputs/phase4/calibration_scatter.png"</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> img_path.exists():</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> IPython.display <span class="im">import</span> Image</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    display(Image(filename<span class="op">=</span><span class="bu">str</span>(img_path)))</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    pending_note(<span class="st">"calibration scatter plot"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="fig-calibration-scatter" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-calibration-scatter-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="final_report_files/figure-html/fig-calibration-scatter-output-1.png" class="img-fluid figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-calibration-scatter-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: LLM fluency score vs.&nbsp;CER
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> agreement <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Mean agreement: </span><span class="sc">{</span>agreement[<span class="st">'agreement_score'</span>]<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Pages flagged for review: </span><span class="sc">{</span><span class="bu">int</span>(agreement[<span class="st">'flagged_for_review'</span>].<span class="bu">sum</span>())<span class="sc">}</span><span class="ss"> / </span><span class="sc">{</span><span class="bu">len</span>(agreement)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    pending_note(<span class="st">"Phase 4 cross-model agreement results"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="tbl-cross-model" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="9">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-cross-model-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;5: Cross-model agreement (Method C)
+</figcaption>
+<div aria-describedby="tbl-cross-model-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-stdout">
+<pre><code>Mean agreement: 0.3030
+Pages flagged for review: 433 / 500</code></pre>
+</div>
+</div>
+</figure>
+</div>
+<hr>
+</section>
+</section>
+<section id="phase-5-analysis-insights-and-scalability" class="level1" data-number="7">
+<h1 data-number="7"><span class="header-section-number">7</span> Phase 5: Analysis, Insights, and Scalability</h1>
+<section id="error-categorization" class="level2" data-number="7.1">
+<h2 data-number="7.1" class="anchored" data-anchor-id="error-categorization"><span class="header-section-number">7.1</span> Error Categorization</h2>
+<p>Beyond a single CER number, OCR errors were classified by type (substitution, deletion, insertion), with two Telugu-specific categories: errors involving combining vowel signs (mātrā confusion) and errors adjacent to the virama/conjunct-forming character, both recognized failure modes for Telugu OCR specifically (per <span class="citation" data-cites="rao2019telugu">(<a href="#ref-rao2019telugu" role="doc-biblioref"><span class="nocase">Rao et al.</span> 2019</a>)</span>) rather than generic to OCR broadly.</p>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> error_cats.get(<span class="st">"_pending"</span>):</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    pending_note(error_cats[<span class="st">"_label"</span>])</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(json.dumps(error_cats, indent<span class="op">=</span><span class="dv">2</span>, ensure_ascii<span class="op">=</span><span class="va">False</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="tbl-error-categories" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="10">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-error-categories-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;6: Error type breakdown
+</figcaption>
+<div aria-describedby="tbl-error-categories-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-stdout">
+<pre><code>{
+  "model_name": "claude",
+  "pages_analyzed": 500,
+  "total_substitutions": 44235,
+  "total_deletions": 58897,
+  "total_insertions": 41879,
+  "total_diacritic_errors": 9452,
+  "total_conjunct_adjacent_errors": 2197,
+  "pages_flagged_hallucination": 15,
+  "pages_flagged_truncation": 8,
+  "pct_substitution_errors_are_diacritic": 21.4
+}</code></pre>
+</div>
+</div>
+</figure>
+</div>
+</section>
+<section id="scalability-and-cost-estimate" class="level2" data-number="7.2">
+<h2 data-number="7.2" class="anchored" data-anchor-id="scalability-and-cost-estimate"><span class="header-section-number">7.2</span> Scalability and Cost Estimate</h2>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> cost_estimate.get(<span class="st">"_pending"</span>):</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    pending_note(cost_estimate[<span class="st">"_label"</span>])</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> []</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> model, vals <span class="kw">in</span> cost_estimate.items():</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>        rows.append({<span class="st">"Model"</span>: model, <span class="op">**</span>vals})</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(pd.DataFrame(rows).to_string(index<span class="op">=</span><span class="va">False</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="tbl-cost-estimate" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="11">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-cost-estimate-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;7: Projected cost/time to process the full ~32,949-page corpus
+</figcaption>
+<div aria-describedby="tbl-cost-estimate-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-stdout">
+<pre><code>           Model  seconds_per_page  total_pages  serial_runtime_hours  parallel_runtime_hours_5x  cost_if_billing_enabled_usd                                                                                                                                                                                                                                                                                                                                                                                                                          notes  free_tier_daily_quota_per_key  free_tier_days_needed  free_tier_total_cost_usd
+   claude-sonnet             37.00        32949                 338.6                       67.7                       724.88                                                                                                                                                                                                                                                  This project's actual primary OCR model. No free tier (paid API); rate-limit handling via retry+backoff and optional multi-key rotation, not a daily quota cap like Gemini's.                            NaN                    NaN                       NaN
+    claude-haiku              8.00        32949                  73.2                       14.6                        98.85                                                                                                                                                                                                                                                                                  This project's actual Phase 4 validation/judging model (not used for OCR itself) — included here for completeness, not as an OCR alternative.                            NaN                    NaN                       NaN
+  gemini-3-flash              2.00        32949                  18.3                        3.7                        29.65 Considered and tested early in this project for its free tier, but abandoned due to content-safety blocking on copyrighted-era Telugu literature and an authentication bug with Google's new API key format during the project's final week (see final_report.qmd, Phase 3 Model Selection discussion, and presentation_notes.md). Included here for comparison only — NOT the model actually used for this project's results.                          500.0                   16.5                       0.0
+gemini-2.5-flash              1.50        32949                  13.7                        2.7                        23.06                                                                                                                                                                                                                                                                                                                                                                   Same caveats as gemini-3-flash above — considered, not used.                          500.0                   16.5                       0.0
+          gpt-4o              3.00        32949                  27.5                        5.5                       197.69                                                                                                                                                                                                                                            Strong multilingual OCR; not tested in this project. Timing is a published-benchmark assumption, not measured — likely also higher in practice per the Claude Sonnet finding above.                            NaN                    NaN                       NaN
+   tesseract-tel              0.66        32949                   6.0                        1.2                         0.00                                                                                                                                                                                                                                                                                  Free, local, no rate limits at all — this project's classical baseline. Timing is real measured data from this project's actual 500-page run.                            NaN                    NaN                       NaN</code></pre>
+</div>
+</div>
+</figure>
+</div>
+<p>This estimate uses published API pricing as of the time of writing; exact figures should be re-verified before being treated as authoritative, as LLM API pricing changes frequently.</p>
+</section>
+<section id="failure-mode-discussion" class="level2" data-number="7.3">
+<h2 data-number="7.3" class="anchored" data-anchor-id="failure-mode-discussion"><span class="header-section-number">7.3</span> Failure Mode Discussion</h2>
+<p>Three results, read together, point to a coherent picture of <em>how</em> Claude’s OCR output diverges from the reference text — not just <em>how much</em>:</p>
+<p><strong>1. Cross-model agreement is low (mean 0.30; 433 of 500 pages flagged for review at the agreement &lt; 0.7 threshold)</strong> — substantially lower than the ~0.70-0.80 agreement that two independent OCR engines might be expected to show on the same clean scans, even accounting for Tesseract’s weaker baseline accuracy. This means Claude and Tesseract aren’t just making slightly different small mistakes on the same pages — they’re frequently diverging in substantial ways, which is itself useful: a high-disagreement page is a reasonable trigger for manual review even without any ground truth at all.</p>
+<p><strong>2. Error type breakdown shows deletions as the dominant category</strong> (58,897 deletions vs.&nbsp;44,235 substitutions and 41,879 insertions across 500 pages — roughly 118 deletions/page on average). Claude’s errors are not primarily “wrong character instead of right character” (substitution) but more often <strong>omission</strong> — skipping text rather than guessing at it. This is a meaningfully different failure mode than a classical OCR engine like Tesseract, which tends to substitute visually similar glyphs rather than drop content outright. A plausible explanation: when faced with a genuinely ambiguous or degraded region (dense conjunct clusters, faded ink, marginalia), an LLM-based OCR model has the option to simply not transcribe it, whereas a character-by-character classical engine has no equivalent “skip” behavior — it must output <em>something</em> for each detected glyph region. This is a safer failure mode in principle (omission is usually easier to detect than confident-sounding fabrication), except where it crosses into outright <strong>page truncation</strong> — flagged on 8 of 500 pages (1.6%) — where the model appears to have stopped transcribing partway through a page rather than completing it.</p>
+<p><strong>3. Hallucination is rare but real</strong>: 15 of 500 pages (3%) were flagged for content not present in the source. Combined with the deletion-dominant pattern above, this suggests Claude’s primary error mode under difficulty is <em>conservative</em> (omit rather than fabricate), with confident fabrication as a real but secondary failure mode.</p>
+<p><strong>4. Fluency scores are notably low (mean 2.16/5) relative to character-level accuracy (CER ≈ 0.18-0.19, i.e., roughly 81-82% of characters correct)</strong> — a number that on its own might suggest “mostly right.” This mismatch is itself informative: a moderate CER doesn’t guarantee fluent, coherent text, particularly when errors cluster (e.g., several consecutive dropped characters breaking a word) rather than scattering randomly. It also helps explain the weaker-than-hoped calibration correlation discussed in <a href="#results-1">Phase 4 Results</a> — fluency and character-level accuracy are related but are not measuring exactly the same thing, and a judge model scoring fluency is reasonably picking up on a real, distinct signal (readability/ coherence) rather than simply failing to track CER.</p>
+<p><strong>5. Only 21.4% of substitution errors are diacritic-related</strong> — lower than might be expected for a script with Telugu’s diacritic density, and notably lower than the Phase 1 manual annotation’s artifact taxonomy might suggest in isolation. This indicates that for this corpus and this model, diacritic/mātrā confusion, while real and worth continued attention, is not the dominant driver of OCR error — omission and broader substitution errors matter more in aggregate.</p>
+<hr>
+</section>
+</section>
+<section id="limitations" class="level1" data-number="8">
+<h1 data-number="8"><span class="header-section-number">8</span> Limitations</h1>
+<ul>
+<li>The 40-page Phase 1 ground truth, while manually verified, is a small sample relative to the corpus’s true diversity (217+ books spanning roughly two centuries of Telugu printing).</li>
+<li>Wikisource transcriptions used as reference for the larger 500-page sample are community-contributed and not individually hand-reverified at that scale, unlike the Phase 1 sample.</li>
+<li>Local LLM judge quality (Qwen3, when used) is measurably weaker on Telugu than the paid/free-tier-API alternatives — a real cost/accuracy tradeoff documented but not fully resolved here.</li>
+<li>Paid-API rate limits and per-page latency (Claude Sonnet measured at ~37 seconds/page) constrained the practical sample size to 500 pages rather than the full corpus; Phase 5’s scalability estimate projects beyond what was directly tested, using this project’s own measured timing rather than a generic assumption.</li>
+</ul>
+</section>
+<section id="conclusions" class="level1" data-number="9">
+<h1 data-number="9"><span class="header-section-number">9</span> Conclusions</h1>
+<p>This project set out to build and evaluate a Telugu OCR pipeline combining a classical baseline (Tesseract) with a modern vision- capable LLM (Claude), alongside an LLM-based validation framework intended to substitute for, or supplement, ground-truth comparison at scale. Three conclusions follow directly from the real results above.</p>
+<p><strong>Claude meaningfully outperforms Tesseract on this corpus, but at a real cost.</strong> Mean CER across 500 real corpus pages was 0.185 for Claude versus 0.231 for Tesseract (excluding statistically unstable short-reference pages) — roughly a 20% relative improvement. That improvement is not free: Claude’s real measured throughput (~37 seconds/page) is over 50× slower than Tesseract’s (~0.66 seconds/page), and processing the full ~32,949-page corpus would cost an estimated $725 and take on the order of two weeks serial (or a few days with 5×parallelization) versus Tesseract’s free, same-day completion. For this corpus specifically, Tesseract’s accuracy gap may be acceptable for some use cases (e.g., a first-pass searchable-text index), while Claude’s improvement is more clearly justified where transcription quality is the primary goal — a genuine cost/accuracy tradeoff this project can now quantify rather than only assume.</p>
+<p><strong>LLM-based validation produced real, usable signal, but did not fully match the originally hoped-for tight correlation with ground-truth CER.</strong> Method C (cross-model agreement, no ground truth needed at all) correctly flagged 433 of 500 pages for review — a usable, zero- ground-truth screening signal on its own. Methods A and B (fluency scoring, error detection) showed a real but moderate relationship to true CER: Pearson r = -0.33, Spearman r = -0.60. The gap between these two correlation measures, combined with the Failure Mode Discussion’s finding that fluency and character-level accuracy capture related but distinct signals, suggests LLM-based fluency scoring is better interpreted as a <em>complementary</em> quality signal — useful for relative ranking and triage — rather than a drop-in numerical proxy for CER. This is an honest, qualified finding, not a failure: the assignment’s core premise (LLM validation can provide useful signal without ground truth) holds, with the caveat that “useful signal” and “tightly calibrated proxy” are different bars, and only the first was clearly met here.</p>
+<p><strong>The most transferable lesson from this project may be procedural, not numerical.</strong> Two of the most substantive findings — the Unicode filename bug and the histogram-equalization preprocessing bug — were discovered only because intermediate results were inspected directly rather than trusted by default, and the project’s OCR model itself changed twice (Qwen3-VL → Gemini → Claude) in response to real, measured operational problems (throughput, content-safety blocking, a platform authentication bug) rather than being fixed at the outset. Both point to the same broader takeaway, consistent with the course’s stated framing of this project: in applied machine learning, the decisions that most affect outcome quality are frequently about data handling, tool selection under real-world constraints, and willingness to revise an initial plan — not the choice of any single algorithm.</p>
+<hr>
+</section>
+<section id="ai-tool-usage-disclosure" class="level1" data-number="10">
+<h1 data-number="10"><span class="header-section-number">10</span> AI Tool Usage Disclosure</h1>
+<p>Per the course’s policy on LLM-based coding assistants, the following summarizes how such tools were used across this project. Note that “Claude” appears in two <strong>distinct</strong> roles below — as the AI coding assistant used to build this project, and separately, as the actual OCR/validation model running <em>inside</em> the finished pipeline (Phase 3 and Phase 4’s chosen LLM, per the Model Selection discussion in Phase 3). These are not the same usage and are called out separately:</p>
+<ul>
+<li><strong>Claude (Anthropic), as coding assistant</strong>, was used throughout to scaffold the project’s Python scripts (all five phases’ pipeline stages and orchestrators), debug environment and dependency issues (numpy/pandas version conflicts, Unicode encoding, HuggingFace and Gemini/Anthropic API rate-limit and authentication handling), and draft this report’s structure and prose.</li>
+<li><strong>Claude (Anthropic), as the pipeline’s OCR and validation model</strong>, is a result of the project itself, not an authoring aid — it is the subject being evaluated in Phase 3 (OCR accuracy vs.&nbsp;Tesseract) and the judge model used in Phase 4 (Methods A/B). This usage is the project’s actual deliverable, not an academic-integrity disclosure item, but is noted here to avoid any ambiguity given the shared vendor with the coding-assistant usage above.</li>
+<li><strong>Bugs found and fixed with AI (coding-assistant) assistance, verified independently by the author</strong>: the Unicode filename handling bug and the histogram-equalization preprocessing bug (Phase 2, detailed above); a hand-rolled CER/WER implementation in an early Phase 3 script was identified as inconsistent with the course’s stated preference for established libraries and replaced with <code>jiwer</code>.</li>
+<li><strong>LLM-assisted ground truth review</strong>: a subset of the Phase 1 40-page annotation was cross-checked using an LLM-based image-to- text comparison workflow to assist with character-level verification of Telugu conjuncts/diacritics; final annotation judgments were made and recorded by the author.</li>
+<li>All generated code was reviewed, run, and debugged by the author and is understood in full. All reported statistics were independently verified by re-running the corresponding scripts against the actual corpus and OCR output, not taken on faith from generated code.</li>
+</ul>
+</section>
+<section id="references" class="level1" data-number="11">
+<h1 data-number="11"><span class="header-section-number">11</span> References</h1>
+<div id="refs" class="references csl-bib-body hanging-indent" role="list">
+<div id="ref-chestnut2026telugu" class="csl-entry" role="listitem">
+Chestnut, Alberto J. 2026. <span>“Telugu <span>OCR</span> Dataset.”</span> Hugging Face. <a href="https://huggingface.co/datasets/AlbertoChestnut/telugu-ocr">https://huggingface.co/datasets/AlbertoChestnut/telugu-ocr</a>.
+</div>
+<div id="ref-proofreadpage" class="csl-entry" role="listitem">
+MediaWiki contributors. 2024. <em>Extension:<span>ProofreadPage</span></em>. <a href="https://www.mediawiki.org/wiki/Extension:ProofreadPage" class="uri">Https://www.mediawiki.org/wiki/Extension:ProofreadPage</a>.
+</div>
+<div id="ref-rao2019telugu" class="csl-entry" role="listitem">
+<span class="nocase">Rao, G. Srinivasa et al.</span> 2019. <span>“Challenges in <span>Telugu</span> Optical Character Recognition: A Survey.”</span> <em>International Journal of Recent Technology and Engineering</em> 8 (2): 4521–27.
+</div>
+<div id="ref-wikisource_telugu" class="csl-entry" role="listitem">
+Telugu Wikisource contributors. 2024. <em>Telugu Wikisource</em>. <a href="https://te.wikisource.org" class="uri">Https://te.wikisource.org</a>.
+</div>
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

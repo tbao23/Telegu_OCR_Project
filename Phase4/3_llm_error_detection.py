@@ -8,9 +8,9 @@ Telugu morphology and vocabulary, and suggest corrections. Like Method A,
 this requires no ground truth and scales to the full corpus.
 
 Backend is configurable via --backend (ollama/anthropic/openai/gemini).
-See llm_backends.py (project root) for setup details for each,
-including free Gemini API key instructions. Ollama (local, free) is
-the default.
+See llm_backends.py (project root) for setup details for each. Default
+is anthropic (Ollama was too slow on CPU-only hardware; Gemini had
+ongoing rate-limit/auth issues with its new key format).
 
 Usage
 -----
@@ -75,14 +75,14 @@ def main():
     parser.add_argument("--model-name", type=str, required=True)
     parser.add_argument("--out", type=Path, default=Path("outputs/phase4"))
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--backend", type=str, default="gemini", choices=BACKENDS,
-                        help="Which LLM backend to use as the judge (default: gemini — see "
+    parser.add_argument("--backend", type=str, default="anthropic", choices=BACKENDS,
+                        help="Which LLM backend to use as the judge (default: anthropic — see "
                              "2_llm_fluency_score.py for why; use --backend ollama for fully local/free)")
     parser.add_argument("--judge-model", type=str, default=None,
                         help="Model name within the chosen backend (default depends on --backend)")
-    parser.add_argument("--api-key-env", type=str, default="GOOGLE_API_KEY_PHASE4",
-                        help="Env var name to read the API key from (default: GOOGLE_API_KEY_PHASE4, "
-                             "falls back to GOOGLE_API_KEY if not set).")
+    parser.add_argument("--api-key-env", type=str, default=None,
+                        help="Env var name for the API key, overriding the chosen backend's "
+                             "standard one (e.g. ANTHROPIC_API_KEY, GOOGLE_API_KEY)")
     args = parser.parse_args()
 
     judge_model = args.judge_model or DEFAULT_MODELS[args.backend]
